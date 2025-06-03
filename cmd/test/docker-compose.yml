@@ -1,0 +1,9 @@
+services:
+  app:
+    image: nginx
+    ports:
+      - "8080:80"
+    environment:
+      FOO: bar
+    labels:
+      com.example.test: "true"
