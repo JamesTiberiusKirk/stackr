@@ -1,0 +1,6 @@
+services:
+  customapp:
+    build:
+      context: ./test_docker_compose/build-context
+    ports:
+      - "8082:80"

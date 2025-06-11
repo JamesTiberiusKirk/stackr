@@ -1,6 +1,7 @@
 package composeconvert
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -27,7 +28,7 @@ type LoadComposeProjectOptions struct {
 	WorkingDir        string
 }
 
-func LoadComposeStack(ops LoadComposeProjectOptions) (*types.Project, error) {
+func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*types.Project, error) {
 	file, err := os.Open(ops.DockerFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open compose file: %w", err)
@@ -75,13 +76,13 @@ func LoadComposeStack(ops LoadComposeProjectOptions) (*types.Project, error) {
 	}
 
 	if ops.NamePrefix != "" || ops.NameSuffix != "" {
-		for _, s := range project.Services {
+		for i, _ := range project.Services {
 			if ops.NamePrefix != "" {
-				s.Name = ops.NamePrefix + s.Name
+				project.Services[i].Name = ops.NamePrefix + project.Services[i].Name
 			}
 
 			if ops.NameSuffix != "" {
-				s.Name = ops.NameSuffix + s.Name
+				project.Services[i].Name = project.Services[i].Name + ops.NameSuffix
 			}
 		}
 	}

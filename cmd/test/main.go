@@ -10,7 +10,9 @@ import (
 )
 
 func main() {
-	project, err := composeconvert.LoadComposeStack(composeconvert.LoadComposeProjectOptions{
+	ctx := context.Background()
+
+	project, err := composeconvert.LoadComposeStack(ctx, composeconvert.LoadComposeProjectOptions{
 		DockerFilePath:    "./cmd/test/docker-compose.yml",
 		PullEnvFromSystem: true,
 	})
@@ -25,8 +27,6 @@ func main() {
 	if err != nil {
 		log.Fatal("error getting docker client %w", err)
 	}
-
-	ctx := context.Background()
 
 	if err := runner.Run(ctx, cli, project); err != nil {
 		log.Fatal(err)
