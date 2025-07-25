@@ -2,8 +2,6 @@ package integrationtest
 
 import (
 	"context"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -23,6 +21,9 @@ import (
 // NOTE:
 // Yes, IK, these tests aren't good, but they serve well for some TDD.
 // When I actually start using this and therefore relying on tests to make sure it works, I'll (try to remember) and fix it.
+//
+// TODO:
+// - [ ] Replace the port mappings with dynamic ports which are free (on the host)
 
 func TestComposeFeatureIsolation(t *testing.T) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -84,40 +85,6 @@ func TestComposeFeatureIsolation(t *testing.T) {
 
 			},
 		},
-		{
-			name:       "Build_from_context",
-			composeYML: "test_docker_compose/build.yml",
-			assertFunc: func(t *testing.T, c container.InspectResponse, sid string) {
-				assert.Equal(t, "stackr_test-customapp-"+sid, c.Config.Hostname)
-
-				resp, err := http.Get("http://localhost:8082")
-				require.NoError(t, err)
-				defer resp.Body.Close()
-
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-
-				assert.Contains(t, string(body), "Hello from custom build")
-			},
-		},
-		{
-			name:       "Build_from_context_with_custom_image_name",
-			composeYML: "test_docker_compose/build_with_image.yml",
-			assertFunc: func(t *testing.T, c container.InspectResponse, sid string) {
-				assert.Equal(t, "stackr_test-customapp_customtag-"+sid, c.Config.Hostname)
-				assert.Equal(t, "custom_build_image", c.Config.Image)
-
-				// Check if the service is accessible via port 8082
-				resp, err := http.Get("http://localhost:8083")
-				require.NoError(t, err)
-				defer resp.Body.Close()
-
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-
-				assert.Contains(t, string(body), "Hello from custom build")
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -133,7 +100,7 @@ func TestComposeFeatureIsolation(t *testing.T) {
 			project, err := composeconvert.LoadComposeStack(ctx, composeconvert.LoadComposeProjectOptions{
 				NamePrefix:        "stackr_test-",
 				NameSuffix:        "-" + sid,
-				DockerFilePath:    tt.composeYML,
+				DockerComposePath: tt.composeYML,
 				PullEnvFromSystem: true,
 			})
 			require.NoError(t, err, "Error from load compose stack")

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,9 +20,9 @@ import (
 )
 
 type LoadComposeProjectOptions struct {
-	DockerFilePath string
-	NamePrefix     string
-	NameSuffix     string
+	DockerComposePath string
+	NamePrefix        string
+	NameSuffix        string
 	// This will overwrite any existing env pulled from system (if its enabled)
 	Env               map[string]string
 	PullEnvFromSystem bool
@@ -29,7 +30,7 @@ type LoadComposeProjectOptions struct {
 }
 
 func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*types.Project, error) {
-	file, err := os.Open(ops.DockerFilePath)
+	file, err := os.Open(ops.DockerComposePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open compose file: %w", err)
 	}
@@ -51,23 +52,27 @@ func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*type
 		}
 	}
 
-	// copy all the k/v pairs from ops to env map
 	maps.Copy(env, ops.Env)
 
 	workingDir := ops.WorkingDir
-	if workingDir != "" {
+	if workingDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get pwd: %w", err)
 		}
-
 		workingDir = pwd
 	}
 
+	// Resolve relative build.context to absolute paths
+	composeDir := filepath.Dir(ops.DockerComposePath)
+
 	project, err := loader.Load(types.ConfigDetails{
-		WorkingDir: workingDir,
+		WorkingDir: composeDir,
 		ConfigFiles: []types.ConfigFile{
-			{Filename: ops.DockerFilePath, Config: raw},
+			{
+				Filename: ops.DockerComposePath,
+				Config:   raw,
+			},
 		},
 		Environment: env,
 	})
@@ -75,12 +80,12 @@ func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*type
 		return nil, fmt.Errorf("failed to load compose project: %w", err)
 	}
 
+	// Apply name prefix/suffix if needed
 	if ops.NamePrefix != "" || ops.NameSuffix != "" {
-		for i, _ := range project.Services {
+		for i := range project.Services {
 			if ops.NamePrefix != "" {
 				project.Services[i].Name = ops.NamePrefix + project.Services[i].Name
 			}
-
 			if ops.NameSuffix != "" {
 				project.Services[i].Name = project.Services[i].Name + ops.NameSuffix
 			}

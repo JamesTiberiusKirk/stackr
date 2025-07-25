@@ -13,7 +13,7 @@ func main() {
 	ctx := context.Background()
 
 	project, err := composeconvert.LoadComposeStack(ctx, composeconvert.LoadComposeProjectOptions{
-		DockerFilePath:    "./cmd/test/docker-compose.yml",
+		DockerComposePath: "./cmd/test/docker-compose.yml",
 		PullEnvFromSystem: true,
 	})
 	if err != nil {
