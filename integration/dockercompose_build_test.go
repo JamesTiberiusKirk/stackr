@@ -19,7 +19,7 @@ import (
 	"github.com/teris-io/shortid"
 )
 
-func TestComposeFeatureIsolation_Build(t *testing.T) {
+func TestCompose_Build(t *testing.T) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 

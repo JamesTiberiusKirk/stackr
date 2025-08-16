@@ -25,7 +25,7 @@ import (
 // TODO:
 // - [ ] Replace the port mappings with dynamic ports which are free (on the host)
 
-func TestComposeFeatureIsolation(t *testing.T) {
+func TestCompose(t *testing.T) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 
@@ -82,7 +82,6 @@ func TestComposeFeatureIsolation(t *testing.T) {
 			composeYML: "test_docker_compose/hostname.yml",
 			assertFunc: func(t *testing.T, c container.InspectResponse, sid string) {
 				assert.Equal(t, "stackr_test-hostname-test-"+sid, c.Config.Hostname)
-
 			},
 		},
 	}

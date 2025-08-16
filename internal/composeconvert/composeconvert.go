@@ -51,7 +51,6 @@ func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*type
 			}
 		}
 	}
-
 	maps.Copy(env, ops.Env)
 
 	workingDir := ops.WorkingDir
@@ -63,16 +62,12 @@ func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*type
 		workingDir = pwd
 	}
 
-	// Resolve relative build.context to absolute paths
 	composeDir := filepath.Dir(ops.DockerComposePath)
 
 	project, err := loader.Load(types.ConfigDetails{
 		WorkingDir: composeDir,
 		ConfigFiles: []types.ConfigFile{
-			{
-				Filename: ops.DockerComposePath,
-				Config:   raw,
-			},
+			{Filename: ops.DockerComposePath, Config: raw},
 		},
 		Environment: env,
 	})
@@ -80,24 +75,25 @@ func LoadComposeStack(ctx context.Context, ops LoadComposeProjectOptions) (*type
 		return nil, fmt.Errorf("failed to load compose project: %w", err)
 	}
 
-	// Apply name prefix/suffix if needed
-	if ops.NamePrefix != "" || ops.NameSuffix != "" {
-		for i := range project.Services {
-			if ops.NamePrefix != "" {
-				project.Services[i].Name = ops.NamePrefix + project.Services[i].Name
-			}
-			if ops.NameSuffix != "" {
-				project.Services[i].Name = project.Services[i].Name + ops.NameSuffix
-			}
-		}
-	}
-
+	// 1) Sort services BEFORE renaming so DependsOn keys still match original names.
 	orderedServices, err := topoSortServices(project.Services)
 	if err != nil {
 		return nil, fmt.Errorf("failed to order services: %w", err)
 	}
-	project.Services = orderedServices
 
+	// 2) THEN apply name prefix/suffix (preserves order and avoids mismatch).
+	if ops.NamePrefix != "" || ops.NameSuffix != "" {
+		for i := range orderedServices {
+			if ops.NamePrefix != "" {
+				orderedServices[i].Name = ops.NamePrefix + orderedServices[i].Name
+			}
+			if ops.NameSuffix != "" {
+				orderedServices[i].Name = orderedServices[i].Name + ops.NameSuffix
+			}
+		}
+	}
+
+	project.Services = orderedServices
 	return project, nil
 }
 
