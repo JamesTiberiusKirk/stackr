@@ -1,3 +1,0 @@
-services:
-  hostname-test:
-    image: nginx

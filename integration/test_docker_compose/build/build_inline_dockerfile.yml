@@ -1,6 +1,0 @@
-services:
-  customapp_inline_dockerfile:
-    build:
-      dockerfile_inline: |
-        FROM alpine:latest
-        CMD ["sh", "-c", "echo 'testing inline dockerfile'"]

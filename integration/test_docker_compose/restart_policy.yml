@@ -1,4 +1,0 @@
-services:
-  restart-test:
-    image: nginx
-    restart: always
