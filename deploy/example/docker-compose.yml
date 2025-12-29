@@ -1,0 +1,19 @@
+name: stackr
+
+services:
+  stackr:
+    container_name: stackr
+    image: ghcr.io/jamestiberiuskirk/stackr:latest
+    restart: unless-stopped
+    environment:
+      STACKR_HOST: 0.0.0.0
+      STACKR_PORT: 9000
+      STACKR_TOKEN: ${STACKR_TOKEN}
+      STACKR_REPO_ROOT: /srv/stackr_repo
+      STACKR_HOST_REPO_ROOT: ${STACKR_HOST_REPO_ROOT}
+    volumes:
+      - ${STACKR_HOST_REPO_ROOT}:/srv/stackr_repo
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.docker/config.json:/root/.docker/config.json:ro
+    ports:
+      - "9000:9000"
