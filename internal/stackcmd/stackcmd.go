@@ -274,7 +274,8 @@ func (m *Manager) backupStack(stack, stackDir string, opts Options) error {
 func (m *Manager) ensureStackVars(stack string, vars []string, opts Options) error {
 	missing := make([]string, 0, len(vars))
 	for _, v := range vars {
-		if v == "STACK_STORAGE_HDD" || v == "STACK_STORAGE_SSD" || v == "STORAGE_HDD" || v == "STORAGE_SSD" {
+		// Skip auto-provisioned variables
+		if isAutoProvisionedVar(v) {
 			continue
 		}
 		if _, ok := m.envValues[v]; ok {
@@ -584,7 +585,8 @@ func (m *Manager) hasImageUpdate(ctx context.Context, image string, debug bool) 
 func (m *Manager) validateEnvVars(vars []string, env map[string]string) error {
 	var missing []string
 	for _, v := range vars {
-		if isStorageVar(v) {
+		// Skip auto-provisioned variables (they're always available at runtime)
+		if isAutoProvisionedVar(v) {
 			continue
 		}
 		if value, ok := env[v]; !ok || strings.TrimSpace(value) == "" {
@@ -734,6 +736,22 @@ func isStorageVar(name string) bool {
 	default:
 		return false
 	}
+}
+
+// isAutoProvisionedVar returns true if the variable is automatically provisioned by stackr
+func isAutoProvisionedVar(name string) bool {
+	// Legacy storage variables
+	if isStorageVar(name) {
+		return true
+	}
+	// New auto-provisioned variables
+	if strings.HasPrefix(name, "STACKR_PROV_POOL_") {
+		return true
+	}
+	if name == "STACKR_PROV_DOMAIN" || name == "DCFP" {
+		return true
+	}
+	return false
 }
 
 func uniqueEnvVars(content string) []string {
