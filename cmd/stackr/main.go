@@ -12,6 +12,15 @@ import (
 	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
 )
 
+var (
+	// Version is set at build time via -ldflags
+	Version = "dev"
+	// Commit is set at build time via -ldflags
+	Commit = "unknown"
+	// Date is set at build time via -ldflags
+	Date = "unknown"
+)
+
 const helpMsg = `Stackr CLI - Docker Compose stack orchestration
 
 Usage:
@@ -29,6 +38,7 @@ Examples:
 
 Flags:
   -h, --help         Show this help message
+  -v, --version      Show version information
   -D, --debug        Print debug messages
       --dry-run      Do not execute write actions; print docker compose config
       --tag <tag>    Update .env with image tag before deployment (requires update command)
@@ -46,10 +56,21 @@ Commands (can be combined):
 `
 
 func main() {
-	opts, showHelp, err := parseArgs(os.Args[1:])
+	opts, showHelp, showVersion, err := parseArgs(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+
+	if showVersion {
+		fmt.Printf("stackr version %s\n", Version)
+		if Commit != "unknown" {
+			fmt.Printf("commit: %s\n", Commit)
+		}
+		if Date != "unknown" {
+			fmt.Printf("built: %s\n", Date)
+		}
+		return
 	}
 
 	if showHelp {
@@ -112,20 +133,23 @@ func main() {
 	}
 }
 
-func parseArgs(args []string) (stackcmd.Options, bool, error) {
+func parseArgs(args []string) (stackcmd.Options, bool, bool, error) {
 	var opts stackcmd.Options
+	var showVersion bool
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch arg {
 		case "-h", "--help":
-			return opts, true, nil
+			return opts, true, false, nil
+		case "-v", "--version":
+			return opts, false, true, nil
 		case "-D", "--debug":
 			opts.Debug = true
 		case "--dry-run":
 			opts.DryRun = true
 		case "--tag":
 			if i+1 >= len(args) {
-				return opts, false, fmt.Errorf("--tag requires a value")
+				return opts, false, false, fmt.Errorf("--tag requires a value")
 			}
 			i++
 			opts.Tag = args[i]
@@ -153,7 +177,7 @@ func parseArgs(args []string) (stackcmd.Options, bool, error) {
 		case "run-cron":
 			opts.RunCron = true
 			if i+1 >= len(args) {
-				return opts, false, fmt.Errorf("run-cron requires a service name")
+				return opts, false, false, fmt.Errorf("run-cron requires a service name")
 			}
 			i++
 			opts.CronService = args[i]
@@ -173,7 +197,7 @@ func parseArgs(args []string) (stackcmd.Options, bool, error) {
 			i = len(args)
 		default:
 			if strings.HasPrefix(arg, "-") {
-				return opts, false, fmt.Errorf("unknown flag %s", arg)
+				return opts, false, false, fmt.Errorf("unknown flag %s", arg)
 			}
 			if !opts.All {
 				opts.Stacks = append(opts.Stacks, arg)
@@ -181,5 +205,5 @@ func parseArgs(args []string) (stackcmd.Options, bool, error) {
 		}
 	}
 
-	return opts, false, nil
+	return opts, false, showVersion, nil
 }
