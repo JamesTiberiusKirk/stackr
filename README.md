@@ -37,7 +37,7 @@ Stackr provides:
    └── stacks/               # Your compose stacks
        ├── myapp/
        │   └── docker-compose.yml
-       └── database/
+       └── stackr/
            └── docker-compose.yml
    ```
 
@@ -82,7 +82,7 @@ cron:
   profile: cron                  # Profile name for cron-only services
   enable_file_logs: true         # Enable file-based logging for cron jobs
   logs_dir: logs/cron            # Directory for cron log files
-  container_retention: 5         # Keep last N cron containers per service
+  docker_container_retention: 5  # Keep last N cron containers per service (does NOT clean up log files)
 
 http:
   base_domain: example.local     # Base domain for HTTP services
@@ -262,7 +262,7 @@ cron:
   profile: cron                  # Profile for cron-only services
   enable_file_logs: true         # Enable file-based logging for cron jobs
   logs_dir: logs/cron            # Directory for cron log files
-  container_retention: 5         # Keep last N cron containers per service
+  docker_container_retention: 5  # Keep last N cron containers per service (does NOT clean up log files)
 
 # HTTP configuration
 http:

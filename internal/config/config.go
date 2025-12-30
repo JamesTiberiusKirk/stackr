@@ -39,7 +39,7 @@ type CronConfig struct {
 	DefaultProfile     string `yaml:"profile"`
 	EnableFileLogs     bool   `yaml:"enable_file_logs"`
 	LogsDir            string `yaml:"logs_dir"`
-	ContainerRetention int    `yaml:"container_retention"`
+	ContainerRetention int    `yaml:"docker_container_retention"`
 }
 
 type HTTPConfig struct {

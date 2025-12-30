@@ -13,8 +13,8 @@ stacks_dir: stacks
 cron:
   profile: cron
   enable_file_logs: true
-  logs_dir: logs/cron
-  container_retention: 5
+  logs_dir: /path/to/your/logs
+  docker_container_retention: 10  # Keep last N cron containers per service (does NOT clean up log files)
 
 # HTTP configuration
 http:
@@ -22,11 +22,11 @@ http:
 
 # Path provisioning
 paths:
-  backup_dir: /mnt/hdd/backups
+  backup_dir: /path/to/your/backup
   pools:
     # custom values
-    SSD: /mnt/ssd/stack_volumes
-    HDD: /mnt/hdd/stack_volumes
+    SSD: /path/to/your/ssd
+    HDD: /path/to/your/hdd
 
 # Optional: Environment variable injection
 env:
@@ -39,10 +39,6 @@ const envTemplate = `# Stackr environment file
 
 # Stackr API token for remote deployments
 STACKR_TOKEN=changeme
-
-# Stack image tags
-# STACKR_IMAGE_TAG=latest
-# TRAEFIK_IMAGE_TAG=v3.0
 `
 
 const stackrComposeTemplate = `services:

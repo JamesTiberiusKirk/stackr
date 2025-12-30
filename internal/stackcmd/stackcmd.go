@@ -422,10 +422,16 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 	}
 
 	if opts.Update {
-		debugf(opts.Debug, "%s: pulling latest images", stack)
-		if err := m.runComposeCmd(ctx, envSlice, composePath, "pull"); err != nil {
+		debugf(opts.Debug, "%s: checking for image updates", stack)
+		updated, err := m.pullImages(ctx, envSlice, composePath, stack, opts.Debug)
+		if err != nil {
 			return err
 		}
+		if !updated {
+			fmt.Printf("%s: all images up to date, skipping restart\n", stack)
+			return nil
+		}
+		fmt.Printf("%s: new images downloaded, restarting stack\n", stack)
 	}
 
 	debugf(opts.Debug, "%s: bringing stack up", stack)
@@ -452,6 +458,111 @@ func (m *Manager) composeOutput(ctx context.Context, env []string, composePath s
 		return "", fmt.Errorf("docker %s failed: %v\n%s", strings.Join(fullArgs, " "), err, string(out))
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// pullImages checks for updates, pulls if needed, and returns true if any images were updated
+func (m *Manager) pullImages(ctx context.Context, env []string, composePath, stack string, debug bool) (bool, error) {
+	// First, check if updates are available without downloading
+	hasUpdates, err := m.checkImageUpdates(ctx, env, composePath, stack, debug)
+	if err != nil {
+		// If check fails, fall back to pull (conservative approach)
+		log.Printf("%s: image update check failed (%v), falling back to pull", stack, err)
+	} else if !hasUpdates {
+		// No updates available, skip pull
+		return false, nil
+	}
+
+	// Updates available or check failed - proceed with pull
+	log.Printf("%s: pulling latest images", stack)
+	fullArgs := []string{"compose", "-f", composePath, "pull"}
+	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
+	cmd.Dir = m.cfg.RepoRoot
+	cmd.Env = env
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("docker compose pull failed: %v\n%s", err, string(out))
+	}
+
+	log.Printf("%s: pull completed", stack)
+	return true, nil
+}
+
+// checkImageUpdates checks if remote images have updates without downloading them
+func (m *Manager) checkImageUpdates(ctx context.Context, env []string, composePath, stack string, debug bool) (bool, error) {
+	// Get list of images from compose file
+	fullArgs := []string{"compose", "-f", composePath, "config", "--images"}
+	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
+	cmd.Dir = m.cfg.RepoRoot
+	cmd.Env = env
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("failed to get image list: %v", err)
+	}
+
+	images := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(images) == 0 || images[0] == "" {
+		return false, fmt.Errorf("no images found in compose file")
+	}
+
+	log.Printf("%s: checking %d images for updates", stack, len(images))
+
+	// Check each image for updates
+	for _, image := range images {
+		image = strings.TrimSpace(image)
+		if image == "" {
+			continue
+		}
+
+		hasUpdate, err := m.hasImageUpdate(ctx, image, debug)
+		if err != nil {
+			// If we can't check, assume update exists (conservative)
+			log.Printf("%s: failed to check image %s: %v (assuming update exists)", stack, image, err)
+			return true, nil
+		}
+
+		if hasUpdate {
+			log.Printf("%s: image %s has updates", stack, image)
+			return true, nil
+		}
+	}
+
+	log.Printf("%s: all images up to date", stack)
+	return false, nil
+}
+
+// hasImageUpdate checks if a specific image has updates available remotely
+func (m *Manager) hasImageUpdate(ctx context.Context, image string, debug bool) (bool, error) {
+	// Get local image digest
+	localCmd := exec.CommandContext(ctx, "docker", "images", "--no-trunc", "--digests", "--format", "{{.Digest}}", image)
+	localOut, err := localCmd.CombinedOutput()
+	if err != nil || strings.TrimSpace(string(localOut)) == "" {
+		// Image doesn't exist locally, updates are available
+		log.Printf("image %s not found locally, update needed", image)
+		return true, nil
+	}
+	localDigest := strings.TrimSpace(string(localOut))
+
+	// Get remote image digest using manifest inspect
+	remoteCmd := exec.CommandContext(ctx, "docker", "manifest", "inspect", image, "--verbose")
+	remoteOut, err := remoteCmd.CombinedOutput()
+	if err != nil {
+		// Can't access remote, assume update exists
+		return true, fmt.Errorf("failed to inspect remote manifest: %v", err)
+	}
+
+	remoteOutput := string(remoteOut)
+
+	// Extract digest from manifest output (format varies, but digest appears as sha256:...)
+	// The manifest output contains the digest in the Descriptor or as "digest": "sha256:..."
+	if !strings.Contains(remoteOutput, localDigest) {
+		log.Printf("image %s: local digest differs from remote, update available", image)
+		return true, nil
+	}
+
+	log.Printf("image %s: up to date", image)
+	return false, nil
 }
 
 func (m *Manager) validateEnvVars(vars []string, env map[string]string) error {

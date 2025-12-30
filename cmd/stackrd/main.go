@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/cronjobs"
 	"github.com/jamestiberiuskirk/stackr/internal/httpapi"
+	"github.com/jamestiberiuskirk/stackr/internal/removal"
 	"github.com/jamestiberiuskirk/stackr/internal/runner"
 	"github.com/jamestiberiuskirk/stackr/internal/watch"
 )
@@ -60,12 +62,38 @@ func main() {
 		log.Fatalf("failed to start cron scheduler: %v", err)
 	}
 
+	// Initialize removal handler
+	removalHandler := removal.NewHandler(cfg, removal.HandlerConfig{
+		ContinueOnArchiveError: true,
+		CleanupTimeout:         5 * time.Minute,
+	})
+
+	// Get initial stack list and initialize tracker
+	initialStacks, err := loadStackNames(cfg.StacksDir)
+	if err != nil {
+		log.Printf("warning: failed to load initial stack list: %v", err)
+	} else {
+		removalHandler.Initialize(initialStacks)
+	}
+
 	var watchCancel context.CancelFunc
 	{
 		var watchCtx context.Context
 		watchCtx, watchCancel = context.WithCancel(context.Background())
 		if err := watch.WatchStacks(watchCtx, cfg.StacksDir, func(path string) {
-			log.Printf("stack change detected (%s), reloading cron jobs", path)
+			log.Printf("stack change detected (%s), checking for changes", path)
+
+			// Load current stack state
+			currentStacks, err := loadStackNames(cfg.StacksDir)
+			if err != nil {
+				log.Printf("failed to load current stacks: %v", err)
+				return
+			}
+
+			// Check for removals BEFORE reloading cron (important for cleanup ordering)
+			removalHandler.CheckForRemovals(currentStacks)
+
+			// Then reload cron jobs
 			if err := scheduler.Reload(); err != nil {
 				log.Printf("failed to reload cron scheduler: %v", err)
 			}
@@ -120,4 +148,24 @@ func main() {
 	}
 
 	log.Printf("server stopped gracefully")
+}
+
+// loadStackNames scans the stacks directory and returns the names of all valid stacks
+func loadStackNames(stacksDir string) ([]string, error) {
+	entries, err := os.ReadDir(stacksDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var stacks []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		composePath := filepath.Join(stacksDir, entry.Name(), "docker-compose.yml")
+		if _, err := os.Stat(composePath); err == nil {
+			stacks = append(stacks, entry.Name())
+		}
+	}
+	return stacks, nil
 }
