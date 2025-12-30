@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jamestiberiuskirk/stackr/internal/config"
+	"github.com/jamestiberiuskirk/stackr/internal/cronjobs"
 	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
 )
 
@@ -23,6 +24,8 @@ Examples:
   stackr stackr compose up --build
   stackr mx5parts vars-only -- env | grep STACK_STORAGE
   stackr monitoring get-vars
+  stackr mystack run-cron backup
+  stackr mystack run-cron backup -- /app/script.sh --verbose
 
 Flags:
   -h, --help         Show this help message
@@ -31,14 +34,15 @@ Flags:
       --tag <tag>    Update .env with image tag before deployment (requires update command)
 
 Commands (can be combined):
-  init         Initialize a new stackr project with config and example stacks
-  all          Run on all stacks
-  tear-down    Run "docker compose down" for the stack(s)
-  update       Pull latest images and restart stack(s)
-  backup       Back up config/volumes to BACKUP_DIR
-  compose      Shorthand for "vars-only -- docker compose -f $DCFP <args...>"
-  vars-only    Load env vars for the stack(s) and execute the command after --
-  get-vars     Scan compose files for env vars and append missing entries to .env
+  init           Initialize a new stackr project with config and example stacks
+  all            Run on all stacks
+  tear-down      Run "docker compose down" for the stack(s)
+  update         Pull latest images and restart stack(s)
+  backup         Back up config/volumes to BACKUP_DIR
+  compose        Shorthand for "vars-only -- docker compose -f $DCFP <args...>"
+  vars-only      Load env vars for the stack(s) and execute the command after --
+  get-vars       Scan compose files for env vars and append missing entries to .env
+  run-cron <svc> Manually execute a cron job service (optionally with custom command after --)
 `
 
 func main() {
@@ -62,6 +66,32 @@ func main() {
 	}
 
 	repoRootOverride := strings.TrimSpace(os.Getenv("STACKR_REPO_ROOT"))
+
+	// Handle run-cron command (needs config but bypasses normal stack manager)
+	if opts.RunCron {
+		if len(opts.Stacks) != 1 {
+			log.Fatalf("run-cron requires exactly one stack name")
+		}
+
+		repoRoot, err := config.ResolveRepoRoot(repoRootOverride)
+		if err != nil {
+			log.Fatalf("failed to determine repo root: %v", err)
+		}
+
+		cfg, err := config.LoadForCLI(repoRoot)
+		if err != nil {
+			log.Fatalf("failed to load config: %v", err)
+		}
+
+		stack := opts.Stacks[0]
+		service := opts.CronService
+		customCmd := opts.VarsCommand
+
+		if err := cronjobs.ExecuteJobManually(cfg, stack, service, customCmd); err != nil {
+			log.Fatalf("failed to execute cron job: %v", err)
+		}
+		return
+	}
 	repoRoot, err := config.ResolveRepoRoot(repoRootOverride)
 	if err != nil {
 		log.Fatalf("failed to determine repo root: %v", err)
@@ -120,6 +150,21 @@ func parseArgs(args []string) (stackcmd.Options, bool, error) {
 			opts.GetVars = true
 		case "init":
 			opts.Init = true
+		case "run-cron":
+			opts.RunCron = true
+			if i+1 >= len(args) {
+				return opts, false, fmt.Errorf("run-cron requires a service name")
+			}
+			i++
+			opts.CronService = args[i]
+			// Check for custom command after --
+			if i+1 < len(args) && args[i+1] == "--" {
+				i += 2 // Skip the -- separator
+				if i < len(args) {
+					opts.VarsCommand = append([]string{}, args[i:]...)
+				}
+				i = len(args)
+			}
 		case "--":
 			opts.VarsOnly = true
 			if i+1 < len(args) {

@@ -207,6 +207,41 @@ func (s *Scheduler) startLocked() error {
 	return nil
 }
 
+// ExecuteJobManually finds and executes a specific cron job by stack and service name
+// If customCmd is provided, it overrides the default command from the compose file
+func ExecuteJobManually(cfg config.Config, stack, service string, customCmd []string) error {
+	jobs, err := discoverJobs(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to discover jobs: %w", err)
+	}
+
+	// Find the matching job
+	var targetJob *cronJob
+	for _, job := range jobs {
+		if job.Stack == stack && job.Service == service {
+			targetJob = &job
+			break
+		}
+	}
+
+	if targetJob == nil {
+		return fmt.Errorf("cron job not found: stack=%s service=%s (make sure service has stackr.cron.schedule label)", stack, service)
+	}
+
+	// Create a temporary scheduler just to execute this one job
+	s := &Scheduler{
+		cfg: cfg,
+	}
+
+	if len(customCmd) > 0 {
+		log.Printf("manually executing cron job with custom command: stack=%s service=%s cmd=%v", stack, service, customCmd)
+	} else {
+		log.Printf("manually executing cron job: stack=%s service=%s", stack, service)
+	}
+	s.executeWithCommand(*targetJob, customCmd)
+	return nil
+}
+
 func discoverJobs(cfg config.Config) ([]cronJob, error) {
 	entries, err := os.ReadDir(cfg.StacksDir)
 	if err != nil {
@@ -269,7 +304,16 @@ func discoverJobs(cfg config.Config) ([]cronJob, error) {
 	return jobs, nil
 }
 
+// executeWithCommand executes a cron job with an optional custom command
+func (s *Scheduler) executeWithCommand(job cronJob, customCmd []string) {
+	s.executeInternal(job, customCmd)
+}
+
 func (s *Scheduler) execute(job cronJob) {
+	s.executeInternal(job, nil)
+}
+
+func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), runner.CommandTimeout)
 	defer cancel()
 
@@ -345,6 +389,10 @@ func (s *Scheduler) execute(job cronJob) {
 	}
 	// CHANGED: Add --name flag, REMOVE --rm flag
 	composeArgs = append(composeArgs, "run", "--name", containerName, job.Service)
+	// Append custom command if provided
+	if len(customCmd) > 0 {
+		composeArgs = append(composeArgs, customCmd...)
+	}
 
 	opts := stackcmd.Options{
 		Stacks:      []string{job.Stack},

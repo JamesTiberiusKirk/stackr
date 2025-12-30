@@ -37,9 +37,11 @@ type Options struct {
 	GetVars     bool
 	Compose     bool
 	Init        bool
+	RunCron     bool
 	Stacks      []string
 	VarsCommand []string
 	Tag         string
+	CronService string
 }
 
 type Manager struct {
@@ -534,6 +536,14 @@ func (m *Manager) checkImageUpdates(ctx context.Context, env []string, composePa
 
 // hasImageUpdate checks if a specific image has updates available remotely
 func (m *Manager) hasImageUpdate(ctx context.Context, image string, debug bool) (bool, error) {
+	// Skip manifest check for images that don't look like registry images
+	// (e.g., local builds without registry prefix)
+	if !strings.Contains(image, "/") && !strings.Contains(image, ".") {
+		// Local build or service name, skip manifest check
+		log.Printf("image %s appears to be local build, skipping update check", image)
+		return true, nil
+	}
+
 	// Get local image digest
 	localCmd := exec.CommandContext(ctx, "docker", "images", "--no-trunc", "--digests", "--format", "{{.Digest}}", image)
 	localOut, err := localCmd.CombinedOutput()
@@ -548,8 +558,14 @@ func (m *Manager) hasImageUpdate(ctx context.Context, image string, debug bool) 
 	remoteCmd := exec.CommandContext(ctx, "docker", "manifest", "inspect", image, "--verbose")
 	remoteOut, err := remoteCmd.CombinedOutput()
 	if err != nil {
-		// Can't access remote, assume update exists
-		return true, fmt.Errorf("failed to inspect remote manifest: %v", err)
+		// Can't access remote, assume update exists (conservative approach)
+		errMsg := strings.TrimSpace(string(remoteOut))
+		if strings.Contains(errMsg, "no such manifest") || strings.Contains(errMsg, "not found") {
+			log.Printf("image %s: manifest not found remotely (possibly local build), assuming update needed", image)
+		} else {
+			log.Printf("image %s: failed to check remote manifest (assuming update needed)", image)
+		}
+		return true, nil
 	}
 
 	remoteOutput := string(remoteOut)

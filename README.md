@@ -211,6 +211,26 @@ Stackr will:
 3. Execute the service at scheduled times using `docker compose run`
 4. Automatically reload schedules when compose files change
 
+### Manually Running Cron Jobs
+
+You can manually trigger cron jobs without waiting for the schedule:
+
+```bash
+# Run with default command from compose file
+stackr mystack run-cron scraper
+
+# Run with custom command
+stackr mystack run-cron scraper -- /app/scraper.py --verbose --full-scan
+```
+
+This is useful for:
+- Testing cron jobs during development
+- Running maintenance tasks on-demand
+- Executing backups manually
+- Debugging with verbose flags
+
+The manual execution uses the same infrastructure as scheduled runs (timestamped containers, logging to `logs/cron/`).
+
 ## Environment Variables
 
 ### CLI
