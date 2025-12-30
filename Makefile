@@ -36,4 +36,4 @@ lint:
 
 # Build Docker image
 docker-build:
-	docker build -t ghcr.io/jamestiberiuskirk/stackr:latest .
+	docker build -t ghcr.io/jamestiberiuskirk/stackrd:latest .

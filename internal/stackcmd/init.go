@@ -47,7 +47,7 @@ STACKR_TOKEN=changeme
 
 const stackrComposeTemplate = `services:
   stackrd:
-    image: ghcr.io/jamestiberiuskirk/stackr:latest
+    image: ghcr.io/jamestiberiuskirk/stackrd:latest
     restart: unless-stopped
     environment:
       - STACKR_TOKEN=${STACKR_TOKEN}

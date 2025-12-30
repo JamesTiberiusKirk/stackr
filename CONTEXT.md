@@ -27,7 +27,7 @@ Stackr is a standalone Go project for managing Docker Compose stacks with:
 - ⚠️ First git commit (files are staged and ready)
 - ⚠️ Push to GitHub
 - ⚠️ Create v0.1.0 tag to trigger first release
-- ⚠️ Publish Docker image to ghcr.io/jamestiberiuskirk/stackr
+- ⚠️ Publish Docker image to ghcr.io/jamestiberiuskirk/stackrd
 
 ## Project Structure
 
@@ -69,7 +69,7 @@ Release workflow (`.github/workflows/release.yml`):
 1. Triggered when CI workflow completes on main branch
 2. Uses go-semantic-release to create version tag
 3. Builds Docker image with multi-stage build
-4. Pushes to ghcr.io/jamestiberiuskirk/stackr with both version tag and `latest`
+4. Pushes to ghcr.io/jamestiberiuskirk/stackrd with both version tag and `latest`
 
 ## Integration with serverconfig
 
