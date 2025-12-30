@@ -1,0 +1,12 @@
+{
+  "plugins": {
+    "commit-analyzer": {
+      "name": "default",
+      "options": {
+        "patch_release_rules": "fix,chore,ci,perf",
+        "minor_release_rules": "feat",
+        "major_release_rules": "*!"
+      }
+    }
+  }
+}
