@@ -1,0 +1,40 @@
+{
+  "commit-types": {
+    "feat": {
+      "description": "A new feature",
+      "bump": "minor"
+    },
+    "fix": {
+      "description": "A bug fix",
+      "bump": "patch"
+    },
+    "chore": {
+      "description": "Maintenance tasks",
+      "bump": "patch"
+    },
+    "ci": {
+      "description": "CI/CD changes",
+      "bump": "patch"
+    },
+    "docs": {
+      "description": "Documentation changes",
+      "bump": "none"
+    },
+    "style": {
+      "description": "Code style changes",
+      "bump": "none"
+    },
+    "refactor": {
+      "description": "Code refactoring",
+      "bump": "none"
+    },
+    "test": {
+      "description": "Test changes",
+      "bump": "none"
+    },
+    "perf": {
+      "description": "Performance improvements",
+      "bump": "patch"
+    }
+  }
+}

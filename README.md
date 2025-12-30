@@ -42,30 +42,30 @@ Stackr provides:
    ```
 
 2. **Install the Stackr CLI**:
-   ```bash
-   # Linux (amd64)
-   wget https://github.com/jamestiberiuskirk/stackr/releases/latest/download/stackr-linux-amd64
-   chmod +x stackr-linux-amd64
-   sudo mv stackr-linux-amd64 /usr/local/bin/stackr
+```sh
+# Linux (amd64)
+wget https://github.com/jamestiberiuskirk/stackr/releases/latest/download/stackr-linux-amd64
+chmod +x stackr-linux-amd64
+sudo mv stackr-linux-amd64 /usr/local/bin/stackr
 
-   # Linux (arm64)
-   wget https://github.com/jamestiberiuskirk/stackr/releases/latest/download/stackr-linux-arm64
-   chmod +x stackr-linux-arm64
-   sudo mv stackr-linux-arm64 /usr/local/bin/stackr
+# Linux (arm64)
+wget https://github.com/jamestiberiuskirk/stackr/releases/latest/download/stackr-linux-arm64
+chmod +x stackr-linux-arm64
+sudo mv stackr-linux-arm64 /usr/local/bin/stackr
 
-   # macOS (Apple Silicon)
-   wget https://github.com/jamestiberiuskirk/stackr/releases/latest/download/stackr-darwin-arm64
-   chmod +x stackr-darwin-arm64
-   sudo mv stackr-darwin-arm64 /usr/local/bin/stackr
+# macOS (Apple Silicon)
+wget https://github.com/jamestiberiuskirk/stackr/releases/latest/download/stackr-darwin-arm64
+chmod +x stackr-darwin-arm64
+sudo mv stackr-darwin-arm64 /usr/local/bin/stackr
 
-   # Or using Go
-   go install github.com/jamestiberiuskirk/stackr/cmd/stackr@latest
-   ```
+# Or using Go
+go install github.com/jamestiberiuskirk/stackr/cmd/stackr@latest
+```
 
 3. **Run your stacks**:
-   ```bash
-   stackr myapp update
-   ```
+ ```sh
+ stackr myapp update
+ ```
 
 The intended workflow is to organize each service as a "stack" (a folder containing a docker-compose.yml file), then use the Stackr CLI to manage deployments with automatic environment provisioning.
 
