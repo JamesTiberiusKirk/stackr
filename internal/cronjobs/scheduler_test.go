@@ -13,7 +13,7 @@ import (
 func TestDiscoverJobsParsesScheduleProfileAndRunOnDeploy(t *testing.T) {
 	t.Helper()
 	stacksDir := t.TempDir()
-	stackDir := filepath.Join(stacksDir, "mx5parts")
+	stackDir := filepath.Join(stacksDir, "myapp")
 	require.NoError(t, os.MkdirAll(stackDir, 0o755))
 
 	compose := `
@@ -36,7 +36,7 @@ services:
 	require.Len(t, jobs, 1)
 
 	job := jobs[0]
-	require.Equal(t, "mx5parts", job.Stack)
+	require.Equal(t, "myapp", job.Stack)
 	require.Equal(t, "scraper", job.Service)
 	require.Equal(t, "scraper", job.Profile)
 	require.True(t, job.RunOnDeploy)

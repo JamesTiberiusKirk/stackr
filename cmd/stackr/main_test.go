@@ -9,15 +9,15 @@ import (
 )
 
 func TestParseArgsBasic(t *testing.T) {
-	opts, help, version, err := parseArgs([]string{"mx5parts", "update"})
+	opts, help, version, err := parseArgs([]string{"myapp", "update"})
 	require.NoError(t, err)
 	require.False(t, help)
 	require.False(t, version)
-	require.Equal(t, stackcmd.Options{Stacks: []string{"mx5parts"}, Update: true}, opts)
+	require.Equal(t, stackcmd.Options{Stacks: []string{"myapp"}, Update: true}, opts)
 }
 
 func TestParseArgsVarsOnly(t *testing.T) {
-	opts, help, version, err := parseArgs([]string{"immich", "vars-only", "--", "env"})
+	opts, help, version, err := parseArgs([]string{"myapp", "vars-only", "--", "env"})
 	require.NoError(t, err)
 	require.False(t, help)
 	require.False(t, version)
