@@ -134,6 +134,7 @@ func TestBuildStackEnv(t *testing.T) {
 	require.Equal(t, filepath.Join(root, ".ssd_pool", "demo"), env["STACKR_PROV_POOL_SSD"])
 	require.Equal(t, filepath.Join(root, ".hdd_pool", "demo"), env["STACKR_PROV_POOL_HDD"])
 	require.Equal(t, "demo.localhost", env["STACKR_PROV_DOMAIN"])
+	require.Equal(t, "test_value", env["TEST_VAR"]) // Global env var from config
 	require.Equal(t, "demo-value", env["STACK_SPECIFIC"])
 }
 

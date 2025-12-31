@@ -784,6 +784,12 @@ func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
 		env["STACKR_PROV_DOMAIN"] = fmt.Sprintf("%s.%s", stack, domain)
 	}
 
+	// Add global env vars from config
+	for k, v := range m.cfg.Global.Env.Global {
+		env[k] = v
+	}
+
+	// Add stack-specific env vars (these override global if there's a conflict)
 	if stackEnv := m.cfg.Global.Env.Stacks[stack]; len(stackEnv) > 0 {
 		for k, v := range stackEnv {
 			env[k] = v
