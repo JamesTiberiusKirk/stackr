@@ -74,6 +74,11 @@ func NewManagerWithWriters(cfg config.Config, stdout, stderr io.Writer) (*Manage
 	// Backup dir is for internal stackr use only, not injected as env var
 	backupDir := absolutePath(cfg.RepoRoot, cfg.Global.Paths.BackupDir)
 
+	// Add custom path variables to envValues so they're recognized during validation
+	for key, value := range cfg.Global.Paths.Custom {
+		envValues[key] = value
+	}
+
 	for key, value := range cfg.Global.Env.Global {
 		envValues[key] = value
 	}
@@ -782,6 +787,11 @@ func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
 
 	if domain := strings.TrimSpace(m.cfg.Global.HTTP.BaseDomain); domain != "" {
 		env["STACKR_PROV_DOMAIN"] = fmt.Sprintf("%s.%s", stack, domain)
+	}
+
+	// Add custom path variables from config
+	for k, v := range m.cfg.Global.Paths.Custom {
+		env[k] = v
 	}
 
 	// Add global env vars from config

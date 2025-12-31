@@ -49,6 +49,7 @@ type HTTPConfig struct {
 type PathsConfig struct {
 	BackupDir string            `yaml:"backup_dir"`
 	Pools     map[string]string `yaml:"pools"`
+	Custom    map[string]string `yaml:"custom"`
 }
 
 type EnvConfig struct {
@@ -202,6 +203,7 @@ func defaultGlobal() GlobalConfig {
 		Paths: PathsConfig{
 			BackupDir: "./backups",
 			Pools:     map[string]string{},
+			Custom:    map[string]string{},
 		},
 		Env: EnvConfig{
 			Global: map[string]string{},
