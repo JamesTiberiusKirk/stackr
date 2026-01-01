@@ -10,9 +10,11 @@ import (
 
 // CronLogWriters holds separate log file writers for build and execution phases
 type CronLogWriters struct {
-	BuildLog  io.WriteCloser
-	ExecLog   io.WriteCloser
-	timestamp string
+	BuildLog     io.WriteCloser
+	ExecLog      io.WriteCloser
+	BuildLogPath string
+	ExecLogPath  string
+	timestamp    string
 }
 
 // CreateCronLogWriters creates separate log files for build and execution
@@ -44,9 +46,11 @@ func CreateCronLogWriters(logsDir, stack, service string) (*CronLogWriters, erro
 	}
 
 	return &CronLogWriters{
-		BuildLog:  buildFile,
-		ExecLog:   execFile,
-		timestamp: timestamp,
+		BuildLog:     buildFile,
+		ExecLog:      execFile,
+		BuildLogPath: buildLogPath,
+		ExecLogPath:  execLogPath,
+		timestamp:    timestamp,
 	}, nil
 }
 

@@ -367,6 +367,7 @@ func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 	var stderr bytes.Buffer
 
 	// Use MultiWriter to write to both buffer AND exec log file
+	// This captures the actual job output for later logging
 	stdoutWriter := io.Writer(&stdout)
 	stderrWriter := io.Writer(&stderr)
 	if logWriters != nil {
@@ -387,8 +388,8 @@ func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 	if profile := strings.TrimSpace(job.Profile); profile != "" {
 		composeArgs = append(composeArgs, "--profile", profile)
 	}
-	// CHANGED: Add --name flag, REMOVE --rm flag
-	composeArgs = append(composeArgs, "run", "--name", containerName, job.Service)
+	// CHANGED: Add --name flag, REMOVE --rm flag, add --quiet to suppress operational logs
+	composeArgs = append(composeArgs, "run", "--quiet-pull", "--name", containerName, job.Service)
 	// Append custom command if provided
 	if len(customCmd) > 0 {
 		composeArgs = append(composeArgs, customCmd...)
@@ -406,24 +407,15 @@ func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 	if err := manager.Run(ctx, opts); err != nil {
 		if logWriters != nil {
 			_, _ = fmt.Fprintf(logWriters.ExecLog, "\n\n=== ERROR ===\n%s\n", stderr.String())
+			log.Printf("cron job failed stack=%s service=%s log_file=%s", job.Stack, job.Service, logWriters.ExecLogPath)
+		} else {
+			log.Printf("cron job failed stack=%s service=%s", job.Stack, job.Service)
 		}
-		log.Printf("cron job failed stack=%s service=%s\nstdout: %s\nstderr: %s",
-			job.Stack,
-			job.Service,
-			strings.TrimSpace(stdout.String()),
-			strings.TrimSpace(stderr.String()),
-		)
 		return
 	}
 
-	output := strings.TrimSpace(stdout.String())
-	if output == "" {
-		log.Printf("cron job finished stack=%s service=%s", job.Stack, job.Service)
-		return
-	}
-
-	log.Printf("cron job finished stack=%s service=%s output=%s",
-		job.Stack, job.Service, output)
+	// Success - no need to log output, it's in the log files
+	log.Printf("cron job finished stack=%s service=%s", job.Stack, job.Service)
 }
 
 // ensureImage runs docker compose pull to ensure image is available
