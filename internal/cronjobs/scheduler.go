@@ -166,6 +166,13 @@ func (s *Scheduler) startLocked() error {
 
 	for _, job := range s.jobs {
 		jobCfg := job
+
+		// Skip jobs with empty schedule (manual-only)
+		if jobCfg.Schedule == "" {
+			log.Printf("manual-only cron job registered stack=%s service=%s", jobCfg.Stack, jobCfg.Service)
+			continue
+		}
+
 		if _, err := parser.Parse(jobCfg.Schedule); err != nil {
 			return fmt.Errorf("invalid cron schedule for stack=%s service=%s: %w", jobCfg.Stack, jobCfg.Service, err)
 		}
@@ -270,10 +277,12 @@ func discoverJobs(cfg config.Config) ([]cronJob, error) {
 		}
 
 		for serviceName, service := range parsed.Services {
-			schedule := strings.TrimSpace(service.Labels[scheduleLabel])
-			if schedule == "" {
+			// Check if service has cron schedule label (value can be empty for manual-only)
+			schedule, hasLabel := service.Labels[scheduleLabel]
+			if !hasLabel {
 				continue
 			}
+			schedule = strings.TrimSpace(schedule)
 
 			profile := ""
 			if len(service.Profiles) == 1 {

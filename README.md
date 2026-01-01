@@ -223,11 +223,21 @@ stackr mystack run-cron scraper
 stackr mystack run-cron scraper -- /app/scraper.py --verbose --full-scan
 ```
 
+**Manual-only jobs** (no automatic schedule):
+```yaml
+services:
+  manual-backup:
+    image: myapp/backup:latest
+    labels:
+      - stackr.cron.schedule=  # Empty value = manual-only
+```
+
 This is useful for:
 - Testing cron jobs during development
 - Running maintenance tasks on-demand
 - Executing backups manually
 - Debugging with verbose flags
+- Jobs that should never run automatically
 
 The manual execution uses the same infrastructure as scheduled runs (timestamped containers, logging to `logs/cron/`).
 
