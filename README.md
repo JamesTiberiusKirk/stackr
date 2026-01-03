@@ -182,6 +182,45 @@ curl -X POST http://localhost:9000/deploy \
 
 On failure, the previous tag is automatically restored in the environment file.
 
+#### Controlling Auto-Deployment
+
+You can disable auto-deployment for specific stacks using the `stackr.deploy.auto` label:
+
+```yaml
+services:
+  app:
+    image: myapp:latest
+    labels:
+      - stackr.deploy.auto=false  # Disable auto-deployment
+```
+
+Or reference an environment variable:
+
+```yaml
+services:
+  app:
+    image: myapp:latest
+    labels:
+      stackr.deploy.auto: ${MYAPP_AUTODEPLOY}  # Control via .env file
+```
+
+Then in your `.env` file:
+```bash
+MYAPP_AUTODEPLOY=true  # Set to false to disable auto-deployment
+```
+
+When auto-deployment is disabled, the deploy endpoint will return:
+```json
+{
+  "error": "auto-deployment is disabled for this stack"
+}
+```
+
+This is useful for:
+- Temporarily preventing deployments during maintenance
+- Requiring manual approval for critical services
+- Controlling deployments per environment using .env variables
+
 ### Health Check
 
 ```bash

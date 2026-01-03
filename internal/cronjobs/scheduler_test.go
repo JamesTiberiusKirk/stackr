@@ -35,19 +35,29 @@ services:
 
 	require.Len(t, jobs, 2)
 
-	// First job should be scraper with schedule
-	job := jobs[0]
-	require.Equal(t, "myapp", job.Stack)
-	require.Equal(t, "scraper", job.Service)
-	require.Equal(t, "scraper", job.Profile)
-	require.True(t, job.RunOnDeploy)
-	require.Equal(t, "0 1 * * *", job.Schedule)
+	// Find jobs by service name (order is not guaranteed from map iteration)
+	var scraperJob, noopJob *cronJob
+	for i := range jobs {
+		if jobs[i].Service == "scraper" {
+			scraperJob = &jobs[i]
+		} else if jobs[i].Service == "noop" {
+			noopJob = &jobs[i]
+		}
+	}
 
-	// Second job should be noop with empty schedule (manual-only)
-	manualJob := jobs[1]
-	require.Equal(t, "myapp", manualJob.Stack)
-	require.Equal(t, "noop", manualJob.Service)
-	require.Equal(t, "", manualJob.Schedule)
+	// Verify scraper job
+	require.NotNil(t, scraperJob, "scraper job should be discovered")
+	require.Equal(t, "myapp", scraperJob.Stack)
+	require.Equal(t, "scraper", scraperJob.Service)
+	require.Equal(t, "scraper", scraperJob.Profile)
+	require.True(t, scraperJob.RunOnDeploy)
+	require.Equal(t, "0 1 * * *", scraperJob.Schedule)
+
+	// Verify noop job (manual-only with empty schedule)
+	require.NotNil(t, noopJob, "noop job should be discovered")
+	require.Equal(t, "myapp", noopJob.Stack)
+	require.Equal(t, "noop", noopJob.Service)
+	require.Equal(t, "", noopJob.Schedule)
 }
 
 func TestDiscoverJobsIgnoresInvalidRunOnDeploy(t *testing.T) {
