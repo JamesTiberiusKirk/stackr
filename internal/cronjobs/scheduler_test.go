@@ -38,9 +38,10 @@ services:
 	// Find jobs by service name (order is not guaranteed from map iteration)
 	var scraperJob, noopJob *cronJob
 	for i := range jobs {
-		if jobs[i].Service == "scraper" {
+		switch jobs[i].Service {
+		case "scraper":
 			scraperJob = &jobs[i]
-		} else if jobs[i].Service == "noop" {
+		case "noop":
 			noopJob = &jobs[i]
 		}
 	}
