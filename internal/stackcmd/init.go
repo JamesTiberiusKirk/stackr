@@ -52,7 +52,7 @@ const stackrComposeTemplate = `services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${PWD}:/stackr:ro
-      - ${STACK_STORAGE_HDD}/backups:/stackr/backups
+      - ${STACKR_PROV_POOL_HDD}/backups:/stackr/backups
     networks:
       - web
     labels:
@@ -82,7 +82,7 @@ const traefikComposeTemplate = `services:
       - "8080:8080"  # Traefik dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${STACK_STORAGE_HDD}/acme:/acme
+      - ${STACKR_PROV_POOL_HDD}/acme:/acme
     networks:
       - web
     labels:

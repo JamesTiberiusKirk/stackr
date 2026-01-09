@@ -27,12 +27,13 @@ type Config struct {
 }
 
 type GlobalConfig struct {
-	Path   string      `yaml:"-"`
-	Stacks string      `yaml:"stacks_dir"`
-	Cron   CronConfig  `yaml:"cron"`
-	HTTP   HTTPConfig  `yaml:"http"`
-	Paths  PathsConfig `yaml:"paths"`
-	Env    EnvConfig   `yaml:"env"`
+	Path            string      `yaml:"-"`
+	Stacks          string      `yaml:"stacks_dir"`
+	RemoteStacksDir string      `yaml:"remote_stacks_dir"`
+	Cron            CronConfig  `yaml:"cron"`
+	HTTP            HTTPConfig  `yaml:"http"`
+	Paths           PathsConfig `yaml:"paths"`
+	Env             EnvConfig   `yaml:"env"`
 }
 
 type CronConfig struct {
@@ -190,7 +191,8 @@ func loadGlobalConfig(repoRoot string) (GlobalConfig, string, error) {
 
 func defaultGlobal() GlobalConfig {
 	return GlobalConfig{
-		Stacks: "stacks",
+		Stacks:          "stacks",
+		RemoteStacksDir: ".stackr-repos",
 		Cron: CronConfig{
 			DefaultProfile:     "cron",
 			EnableFileLogs:     true,

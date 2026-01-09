@@ -11,6 +11,7 @@ import (
 
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/envfile"
+	"github.com/jamestiberiuskirk/stackr/internal/remote"
 	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
 )
 
@@ -83,6 +84,32 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 
 	log.Printf("updated %s to %s (previous: %s)", stackCfg.TagEnv, tag, previous)
 
+	// Check if remote stack and sync before deployment
+	stackInfo, err := stackcmd.ResolveStackPath(r.cfg, stack)
+	if err != nil {
+		if rollbackErr := envfile.Restore(r.cfg.EnvFile, snap); rollbackErr != nil {
+			log.Printf("failed to roll back %s after stack resolution error: %v", stackCfg.TagEnv, rollbackErr)
+		}
+		return nil, fmt.Errorf("failed to resolve stack: %w", err)
+	}
+
+	if stackInfo.Type == stackcmd.StackTypeRemote {
+		// Read current .env for variable resolution
+		envVals, _, err := readEnvFile(r.cfg.EnvFile)
+		if err != nil {
+			if rollbackErr := envfile.Restore(r.cfg.EnvFile, snap); rollbackErr != nil {
+				log.Printf("failed to roll back %s after env read error: %v", stackCfg.TagEnv, rollbackErr)
+			}
+			return nil, fmt.Errorf("failed to read env file: %w", err)
+		}
+
+		remoteMgr := remote.NewManager(r.cfg)
+		if err := remoteMgr.EnsureRemoteStack(context.Background(), stack, envVals); err != nil {
+			// Use cached version on git failure (graceful degradation)
+			log.Printf("warning: git sync failed for %s, using cached version: %v", stack, err)
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, CommandTimeout)
 	defer cancel()
 
@@ -127,4 +154,30 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 		Tag:    tag,
 		Stdout: strings.TrimSpace(stdout.String()),
 	}, nil
+}
+
+// readEnvFile reads and parses the env file
+func readEnvFile(path string) (map[string]string, string, error) {
+	content, err := envfile.SnapshotFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+
+	data := string(content.Data)
+
+	// Parse env file content into map
+	lines := strings.Split(data, "\n")
+	envVals := make(map[string]string)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			envVals[parts[0]] = parts[1]
+		}
+	}
+
+	return envVals, data, nil
 }

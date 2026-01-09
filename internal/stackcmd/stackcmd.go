@@ -19,6 +19,7 @@ import (
 
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/envfile"
+	"github.com/jamestiberiuskirk/stackr/internal/remote"
 )
 
 var (
@@ -100,16 +101,16 @@ func NewManagerWithWriters(cfg config.Config, stdout, stderr io.Writer) (*Manage
 	}
 
 	return &Manager{
-		cfg:       cfg,
-		envFile:   cfg.EnvFile,
-		envValues: envValues,
+		cfg:        cfg,
+		envFile:    cfg.EnvFile,
+		envValues:  envValues,
 		envContent: envContent,
-		targetDir: targetDir,
-		backupDir: backupDir,
-		baseEnv:   baseEnv,
-		poolBases: poolBases,
-		stdout:    stdout,
-		stderr:    stderr,
+		targetDir:  targetDir,
+		backupDir:  backupDir,
+		baseEnv:    baseEnv,
+		poolBases:  poolBases,
+		stdout:     stdout,
+		stderr:     stderr,
 	}, nil
 }
 
@@ -163,11 +164,22 @@ func (m *Manager) Run(ctx context.Context, opts Options) error {
 }
 
 func (m *Manager) runStack(ctx context.Context, stack string, opts Options) error {
-	stackDir := filepath.Join(m.targetDir, stack)
-	composePath := filepath.Join(stackDir, "docker-compose.yml")
-	if _, err := os.Stat(composePath); err != nil {
+	// Resolve stack path (handles both local and remote stacks)
+	stackInfo, err := ResolveStackPath(m.cfg, stack)
+	if err != nil {
 		return fmt.Errorf("stack %s: %w", stack, err)
 	}
+
+	// If remote stack, ensure it's synced before proceeding
+	if stackInfo.Type == StackTypeRemote {
+		if err := m.syncRemoteStack(ctx, stack); err != nil {
+			// Log warning but continue with cached version (graceful degradation)
+			log.Printf("warning: failed to sync remote stack %s: %v (using cached version)", stack, err)
+		}
+	}
+
+	composePath := stackInfo.ComposePath
+	stackDir := filepath.Dir(composePath)
 
 	// Update .env with new tag if specified
 	if opts.Tag != "" && opts.Update {
@@ -207,25 +219,17 @@ func (m *Manager) runStack(ctx context.Context, stack string, opts Options) erro
 }
 
 func (m *Manager) loadAllStacks() ([]string, error) {
-	entries, err := os.ReadDir(m.targetDir)
+	stacks, err := DiscoverStacks(m.cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read stacks dir %s: %w", m.targetDir, err)
+		return nil, err
 	}
 
-	var stacks []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		stack := entry.Name()
-		composePath := filepath.Join(m.targetDir, stack, "docker-compose.yml")
-		if _, err := os.Stat(composePath); err == nil {
-			stacks = append(stacks, stack)
-		}
+	names := make([]string, len(stacks))
+	for i, s := range stacks {
+		names[i] = s.Name
 	}
-
-	sort.Strings(stacks)
-	return stacks, nil
+	sort.Strings(names)
+	return names, nil
 }
 
 func (m *Manager) backupStack(stack, stackDir string, opts Options) error {
@@ -339,14 +343,6 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 		envMap[k] = v
 	}
 
-	// Set legacy STACK_STORAGE_HDD and STACK_STORAGE_SSD if pools exist
-	if hddPool, ok := m.poolBases["HDD"]; ok {
-		envMap["STACK_STORAGE_HDD"] = filepath.Join(hddPool, stack)
-	}
-	if ssdPool, ok := m.poolBases["SSD"]; ok {
-		envMap["STACK_STORAGE_SSD"] = filepath.Join(ssdPool, stack)
-	}
-
 	envMap["DCFP"] = composePath
 
 	// Automatically check and append missing env vars before validation
@@ -358,36 +354,27 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 		return err
 	}
 
-	if usesVar(vars, "STACK_STORAGE_HDD") || usesVar(vars, "STORAGE_HDD") {
-		if err := ensureDir(envMap["STACK_STORAGE_HDD"]); err != nil {
-			return fmt.Errorf("failed to create HDD stack dir: %w", err)
-		}
-	}
-	if usesVar(vars, "STACK_STORAGE_SSD") || usesVar(vars, "STORAGE_SSD") {
-		if err := ensureDir(envMap["STACK_STORAGE_SSD"]); err != nil {
-			return fmt.Errorf("failed to create SSD stack dir: %w", err)
-		}
-	}
-	if usesVar(vars, "STACKR_PROV_POOL_SSD") {
-		if err := ensureDir(envMap["STACKR_PROV_POOL_SSD"]); err != nil {
-			return fmt.Errorf("failed to ensure SSD pool dir: %w", err)
-		}
-	}
-	if usesVar(vars, "STACKR_PROV_POOL_HDD") {
-		if err := ensureDir(envMap["STACKR_PROV_POOL_HDD"]); err != nil {
-			return fmt.Errorf("failed to ensure HDD pool dir: %w", err)
+	// Ensure pool directories exist for any STACKR_PROV_POOL_* variables used
+	for _, varName := range vars {
+		if strings.HasPrefix(varName, "STACKR_PROV_POOL_") {
+			poolName := strings.TrimPrefix(varName, "STACKR_PROV_POOL_")
+
+			// Verify this pool is configured
+			if _, exists := m.poolBases[poolName]; !exists {
+				return fmt.Errorf("stack uses STACKR_PROV_POOL_%s but pool %q is not configured in paths.pools", poolName, poolName)
+			}
+
+			// Ensure the pool directory exists
+			poolPath := envMap[varName]
+			if err := ensureDir(poolPath); err != nil {
+				return fmt.Errorf("failed to ensure %s pool dir %s: %w", poolName, poolPath, err)
+			}
 		}
 	}
 
 	envSlice := mapToSlice(envMap)
 
 	if opts.DryRun {
-		if hdd, ok := envMap["STACK_STORAGE_HDD"]; ok {
-			fmt.Println("STACK_STORAGE_HDD:", hdd)
-		}
-		if ssd, ok := envMap["STACK_STORAGE_SSD"]; ok {
-			fmt.Println("STACK_STORAGE_SSD:", ssd)
-		}
 		fmt.Println(composePath)
 		debugf(opts.Debug, "%s: running docker compose config", stack)
 		return m.runComposeCmd(ctx, envSlice, composePath, "config")
@@ -734,22 +721,9 @@ func ensureDir(path string) error {
 	return os.MkdirAll(path, 0o755)
 }
 
-func isStorageVar(name string) bool {
-	switch name {
-	case "STACK_STORAGE_HDD", "STACK_STORAGE_SSD", "STORAGE_HDD", "STORAGE_SSD":
-		return true
-	default:
-		return false
-	}
-}
-
 // isAutoProvisionedVar returns true if the variable is automatically provisioned by stackr
 func isAutoProvisionedVar(name string) bool {
-	// Legacy storage variables
-	if isStorageVar(name) {
-		return true
-	}
-	// New auto-provisioned variables
+	// Auto-provisioned pool variables
 	if strings.HasPrefix(name, "STACKR_PROV_POOL_") {
 		return true
 	}
@@ -777,14 +751,21 @@ func uniqueEnvVars(content string) []string {
 	return result
 }
 
+func (m *Manager) syncRemoteStack(ctx context.Context, stack string) error {
+	remoteMgr := remote.NewManager(m.cfg)
+	return remoteMgr.EnsureRemoteStack(ctx, stack, m.envValues)
+}
+
 func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
 	env := make(map[string]string)
 
+	// Auto-provisioned pool paths
 	for name, base := range m.poolBases {
 		path := filepath.Join(base, stack)
 		env[fmt.Sprintf("STACKR_PROV_POOL_%s", name)] = path
 	}
 
+	// Auto-provisioned domain
 	if domain := strings.TrimSpace(m.cfg.Global.HTTP.BaseDomain); domain != "" {
 		env["STACKR_PROV_DOMAIN"] = fmt.Sprintf("%s.%s", stack, domain)
 	}
@@ -799,7 +780,19 @@ func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
 		env[k] = v
 	}
 
-	// Add stack-specific env vars (these override global if there's a conflict)
+	// Merge remote deployment config if this is a remote stack
+	stackInfo, err := ResolveStackPath(m.cfg, stack)
+	if err == nil && stackInfo.Type == StackTypeRemote {
+		remoteMgr := remote.NewManager(m.cfg)
+		remoteEnv, err := remoteMgr.BuildMergedEnv(context.Background(), stack, env)
+		if err != nil {
+			log.Printf("warning: failed to load remote deployment config for %s: %v", stack, err)
+		} else {
+			env = remoteEnv
+		}
+	}
+
+	// Add stack-specific env vars (highest priority, overrides remote)
 	if stackEnv := m.cfg.Global.Env.Stacks[stack]; len(stackEnv) > 0 {
 		for k, v := range stackEnv {
 			env[k] = v

@@ -25,7 +25,7 @@ services:
   web:
     image: nginx:${MY_VAR}
     volumes:
-      - ${STACK_STORAGE_HDD}:/data
+      - ${STACKR_PROV_POOL_HDD}:/data
 `)
 
 	cfg := config.Config{
@@ -138,6 +138,71 @@ func TestBuildStackEnv(t *testing.T) {
 	require.Equal(t, "demo-value", env["STACK_SPECIFIC"])
 }
 
+func TestPoolValidation(t *testing.T) {
+	t.Run("configured pool creates directory", func(t *testing.T) {
+		root := t.TempDir()
+		makeDirs(t, root, "stacks/demo")
+		writeFile(t, filepath.Join(root, ".env"), "")
+		writeFile(t, filepath.Join(root, "stacks/demo/docker-compose.yml"), `
+services:
+  app:
+    image: nginx
+    volumes:
+      - ${STACKR_PROV_POOL_SSD}:/data
+`)
+
+		cfg := config.Config{
+			RepoRoot:  root,
+			EnvFile:   filepath.Join(root, ".env"),
+			StacksDir: filepath.Join(root, "stacks"),
+			Global:    testGlobalConfig(),
+		}
+
+		stubDocker(t)
+
+		manager, err := NewManager(cfg)
+		require.NoError(t, err)
+
+		opts := Options{Stacks: []string{"demo"}, Update: true}
+		require.NoError(t, manager.Run(context.Background(), opts))
+
+		// Verify pool directory was created
+		poolPath := filepath.Join(root, ".ssd_pool", "demo")
+		require.DirExists(t, poolPath)
+	})
+
+	t.Run("unconfigured pool returns error", func(t *testing.T) {
+		root := t.TempDir()
+		makeDirs(t, root, "stacks/demo")
+		writeFile(t, filepath.Join(root, ".env"), "")
+		writeFile(t, filepath.Join(root, "stacks/demo/docker-compose.yml"), `
+services:
+  app:
+    image: nginx
+    volumes:
+      - ${STACKR_PROV_POOL_NVME}:/data
+`)
+
+		cfg := config.Config{
+			RepoRoot:  root,
+			EnvFile:   filepath.Join(root, ".env"),
+			StacksDir: filepath.Join(root, "stacks"),
+			Global:    testGlobalConfig(),
+		}
+
+		stubDocker(t)
+
+		manager, err := NewManager(cfg)
+		require.NoError(t, err)
+
+		opts := Options{Stacks: []string{"demo"}, Update: true}
+		err = manager.Run(context.Background(), opts)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "STACKR_PROV_POOL_NVME")
+		require.Contains(t, err.Error(), "not configured in paths.pools")
+	})
+}
+
 func testGlobalConfig() config.GlobalConfig {
 	return config.GlobalConfig{
 		HTTP: config.HTTPConfig{BaseDomain: "localhost"},
@@ -147,6 +212,7 @@ func testGlobalConfig() config.GlobalConfig {
 				"SSD": ".ssd_pool",
 				"HDD": ".hdd_pool",
 			},
+			Custom: map[string]string{},
 		},
 		Env: config.EnvConfig{
 			Global: map[string]string{
