@@ -31,7 +31,7 @@ Examples:
   stackr all update
   stackr myapp update --tag v1.0.3
   stackr myapp compose up --build
-  stackr myapp vars-only -- env | grep STACK_STORAGE
+  stackr myapp vars-only -- env | grep STACKR_PROV
   stackr monitoring get-vars
   stackr mystack run-cron backup
   stackr mystack run-cron backup -- /app/script.sh --verbose

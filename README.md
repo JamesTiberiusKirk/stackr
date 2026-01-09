@@ -20,6 +20,7 @@ Stackr provides:
 
 - Manage multiple Docker Compose stacks from a single configuration
 - Automated environment variable provisioning (storage paths, domains, etc.)
+- **Remote stack deployments** from external Git repositories
 - Deploy API for CI/CD pipelines to trigger stack updates
 - Schedule compose services using cron expressions via labels
 - Watch configuration files and automatically reload
@@ -142,6 +143,230 @@ stackr myapp vars-only -- env | grep MYAPP
 stackr myapp compose up -d
 stackr myapp compose logs -f
 ```
+
+## Remote Stacks
+
+Remote stacks allow you to deploy Docker Compose applications directly from external Git repositories, enabling your application code and deployment configuration to live together in the same repository.
+
+### Why Use Remote Stacks?
+
+- **Monorepo-friendly**: Keep deployment configuration with application code
+- **Version coupling**: Ensure compose files match application code versions
+- **CI/CD integration**: Deploy specific git tags/commits from your CI pipeline
+- **Separation of concerns**: Infrastructure repo manages stack definitions, app repos contain compose files
+- **Graceful degradation**: Continues using cached version if git is temporarily unreachable
+
+### Stack Types
+
+Stackr supports two types of stacks:
+
+1. **Local stacks**: Traditional stacks with `docker-compose.yml` in your `stacks/` directory
+2. **Remote stacks**: Stacks defined by a `stackr-repo.yml` file that points to a Git repository
+
+### Setting Up a Remote Stack
+
+#### 1. Create a remote stack definition
+
+In your infrastructure repository, create a `stackr-repo.yml` file in the stack directory:
+
+```
+my-server/
+├── .stackr.yaml
+├── .env
+└── stacks/
+    ├── local-app/
+    │   └── docker-compose.yml     # Local stack
+    └── myapp/
+        └── stackr-repo.yml         # Remote stack definition
+```
+
+**stacks/myapp/stackr-repo.yml**:
+```yaml
+remote_repo:
+  url: git@github.com:org/myapp.git
+  branch: main                      # Optional, defaults to "main"
+  path: deploy                      # Optional subdirectory, defaults to "."
+  release:
+    type: tag                       # "tag" or "commit"
+    ref: ${MYAPP_VERSION}           # Resolved from .env file
+```
+
+#### 2. Configure version in .env
+
+```bash
+# In your .env file
+MYAPP_VERSION=v1.2.3
+```
+
+#### 3. Deploy the remote stack
+
+```bash
+stackr myapp update
+```
+
+Stackr will:
+1. Clone the Git repository (if not already cloned)
+2. Resolve `${MYAPP_VERSION}` from your `.env` file
+3. Checkout the specified tag/commit
+4. Deploy using the `docker-compose.yml` from the remote repository
+
+### Remote Stack Configuration
+
+#### Main Configuration (.stackr.yaml)
+
+Add the remote stacks directory to your main config:
+
+```yaml
+stacks_dir: stacks
+remote_stacks_dir: .stackr-repos   # Where remote repos are cloned (default)
+
+# ... rest of your config
+```
+
+#### Per-Stack Definition (stacks/{name}/stackr-repo.yml)
+
+```yaml
+remote_repo:
+  # Required: Git repository URL (SSH or HTTPS)
+  url: git@github.com:org/myapp.git
+
+  # Optional: Branch to track (default: "main")
+  branch: main
+
+  # Optional: Subdirectory containing docker-compose.yml (default: ".")
+  path: deploy
+
+  # Required: Release configuration
+  release:
+    # Type: "tag" for git tags, "commit" for commit hashes
+    type: tag
+
+    # Ref: Git tag, commit hash, or environment variable
+    # Use ${VAR} syntax to resolve from .env file
+    ref: ${MYAPP_VERSION}
+```
+
+#### Remote Deployment Config (.stackr-deployment.yaml in remote repo)
+
+Optionally add a `.stackr-deployment.yaml` file in your remote repository to provide deployment-specific environment variables:
+
+```yaml
+env:
+  LOG_LEVEL: debug
+  DATABASE_HOST: postgres.internal
+  FEATURE_FLAGS: experimental
+```
+
+### Environment Variable Merging
+
+Environment variables are merged with the following priority (highest to lowest):
+
+1. **Stack-specific env** from main `.stackr.yaml` (`env.stacks.{stackName}`)
+2. **Remote deployment config** from `.stackr-deployment.yaml` in remote repo
+3. **Global env** from main `.stackr.yaml` (`env.global`)
+4. **Auto-provisioned vars** (STACKR_PROV_POOL_*, STACKR_PROV_DOMAIN)
+5. **Custom paths** from `.stackr.yaml` (`paths.custom`)
+6. **Base .env** file
+
+This allows you to:
+- Define sensible defaults in the remote repo
+- Override them in your infrastructure config as needed
+- Keep stack-specific overrides at the highest priority
+
+### Sync Behavior
+
+Remote stacks are synced in two scenarios:
+
+1. **Every deployment**: Stackr always pulls the latest remote config
+   - Updates `.stackr-deployment.yaml` on every run
+   - Only changes application version if the resolved ref changes
+
+2. **Version changes**: Application deployment only happens when:
+   - The resolved git ref (tag/commit) changes in `.env`
+   - A new tag is created matching the ref pattern
+
+### Retry Logic for Image Availability
+
+When deploying a new tag, the Docker image might not be published yet (common in CI/CD workflows). Stackr implements exponential backoff retry:
+
+- **Max attempts**: 5
+- **Delays**: 30s, 1m, 2m, 4m, 5m (up to 5 minutes max)
+- **Behavior**: Retries image pull on failure, logs each attempt
+
+This ensures deployments succeed even if the image registry is slower than your Git tags.
+
+### Graceful Degradation
+
+If Git operations fail (network issues, authentication, etc.):
+
+- **Warning logged**: Git sync failure is logged with details
+- **Cached version used**: Continues deployment with previously cloned repo
+- **No deployment failure**: Git issues don't prevent stack operations
+
+Only fails if:
+- Repository has never been cloned
+- Git ref doesn't exist in the repository
+
+### Example Workflows
+
+#### Deploying a specific version
+
+```bash
+# Update .env with new version
+echo "MYAPP_VERSION=v2.0.0" >> .env
+
+# Deploy the new version
+stackr myapp update
+```
+
+#### CI/CD Integration
+
+```yaml
+# In your application's CI pipeline
+- name: Deploy new version
+  run: |
+    curl -X POST https://stackr.example.com/deploy \
+      -H "Authorization: Bearer $STACKR_TOKEN" \
+      -d '{"stack":"myapp","tag":"${{ github.ref_name }}"}'
+```
+
+The deploy API will:
+1. Update `MYAPP_VERSION` in `.env`
+2. Clone/sync the Git repository
+3. Checkout the tag
+4. Deploy with retry logic
+
+#### Mixing Local and Remote Stacks
+
+```
+stacks/
+├── nginx/
+│   └── docker-compose.yml          # Local stack
+├── postgres/
+│   └── docker-compose.yml          # Local stack
+└── myapp/
+    └── stackr-repo.yml             # Remote stack
+```
+
+All standard Stackr commands work with both types:
+
+```bash
+stackr all update              # Updates all stacks (local + remote)
+stackr myapp update            # Updates just the remote stack
+stackr nginx postgres update   # Updates just the local stacks
+```
+
+### Ambiguous Stack Detection
+
+Stackr will error if a stack directory contains both `docker-compose.yml` and `stackr-repo.yml`:
+
+```
+Error: stack "myapp" has both docker-compose.yml and stackr-repo.yml - this is ambiguous, please use one or the other
+```
+
+Choose either:
+- Local stack: Use `docker-compose.yml` directly
+- Remote stack: Use `stackr-repo.yml` pointing to a repository
 
 ## API Reference
 
