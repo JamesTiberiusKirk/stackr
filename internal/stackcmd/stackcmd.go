@@ -743,6 +743,31 @@ func isStorageVar(name string) bool {
 	}
 }
 
+// isStackOffline checks if a stack is marked as offline via environment variable.
+// It checks for STACKNAME_OFFLINE=true in: .env file, stack-specific env vars, and global env vars.
+func (m *Manager) isStackOffline(stack string) bool {
+	offlineVar := strings.ToUpper(stack) + "_OFFLINE"
+
+	// Check .env file values first
+	if val, ok := m.envValues[offlineVar]; ok {
+		return strings.EqualFold(strings.TrimSpace(val), "true")
+	}
+
+	// Check stack-specific env vars from config
+	if stackEnv := m.cfg.Global.Env.Stacks[stack]; len(stackEnv) > 0 {
+		if val, ok := stackEnv[offlineVar]; ok {
+			return strings.EqualFold(strings.TrimSpace(val), "true")
+		}
+	}
+
+	// Check global env vars from config
+	if val, ok := m.cfg.Global.Env.Global[offlineVar]; ok {
+		return strings.EqualFold(strings.TrimSpace(val), "true")
+	}
+
+	return false
+}
+
 // isAutoProvisionedVar returns true if the variable is automatically provisioned by stackr
 func isAutoProvisionedVar(name string) bool {
 	// Legacy storage variables
