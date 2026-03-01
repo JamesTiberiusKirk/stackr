@@ -199,16 +199,29 @@ func (m *Manager) cloneRepo(ctx context.Context, url, branch, destination string
 	return nil
 }
 
-// pullLatest attempts to pull latest changes
+// pullLatest attempts to pull latest changes.
+// If HEAD is detached (e.g. after a tag checkout), only fetch is performed
+// since git pull cannot work without a tracking branch.
 func (m *Manager) pullLatest(ctx context.Context, client *git.Client, stackName string) error {
-	// First fetch to get latest refs
+	// First fetch to get latest refs (also unshallows if needed)
 	if err := client.Fetch(ctx); err != nil {
 		return fmt.Errorf("git fetch failed: %w", err)
 	}
 
-	// Then pull
+	// Skip pull when HEAD is detached (after tag/commit checkout).
+	// Fetch already got the latest refs and objects.
+	ref, err := client.CurrentRef(ctx)
+	if err != nil {
+		log.Printf("warning: could not determine HEAD state for %s, skipping pull", stackName)
+		return nil
+	}
+	if ref == "HEAD" {
+		// Detached HEAD — pull would fail, fetch is sufficient
+		return nil
+	}
+
+	// On a branch — pull to fast-forward
 	if err := client.Pull(ctx); err != nil {
-		// Check if it's a "already up to date" situation
 		if gitErr, ok := err.(*git.GitError); ok {
 			if gitErr.ExitCode == 0 {
 				return nil

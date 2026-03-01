@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/envfile"
 	"github.com/jamestiberiuskirk/stackr/internal/remote"
@@ -164,7 +166,8 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 	}, nil
 }
 
-// readEnvFile reads and parses the env file
+// readEnvFile reads and parses the env file using godotenv for consistent
+// quote stripping and escaping behavior (matches stackcmd.readEnvFile).
 func readEnvFile(path string) (map[string]string, string, error) {
 	content, err := envfile.SnapshotFile(path)
 	if err != nil {
@@ -173,18 +176,9 @@ func readEnvFile(path string) (map[string]string, string, error) {
 
 	data := string(content.Data)
 
-	// Parse env file content into map
-	lines := strings.Split(data, "\n")
-	envVals := make(map[string]string)
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			envVals[parts[0]] = parts[1]
-		}
+	envVals, err := godotenv.Unmarshal(data)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse env file: %w", err)
 	}
 
 	return envVals, data, nil

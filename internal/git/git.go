@@ -117,8 +117,16 @@ func (c *Client) Pull(ctx context.Context) error {
 	return nil
 }
 
-// Fetch downloads objects and refs from remote
+// Fetch downloads objects and refs from remote.
+// If the repo is a shallow clone, it unshallows first so that all tags
+// and commits are reachable for checkout.
 func (c *Client) Fetch(ctx context.Context) error {
+	if c.isShallow() {
+		// Non-fatal: unshallow can fail if already unshallowed between checks.
+		// Continue with normal fetch regardless.
+		_ = c.unshallow(ctx)
+	}
+
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
@@ -137,6 +145,38 @@ func (c *Client) Fetch(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// isShallow returns true if the repository is a shallow clone.
+func (c *Client) isShallow() bool {
+	cmd := exec.Command("git", "-C", c.repoPath, "rev-parse", "--is-shallow-repository")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "true"
+}
+
+// unshallow converts a shallow clone into a full clone.
+func (c *Client) unshallow(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "fetch", "--unshallow")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return &GitError{
+			Operation: "fetch --unshallow",
+			Command:   fmt.Sprintf("git -C %s fetch --unshallow", c.repoPath),
+			Stdout:    stdout.String(),
+			Stderr:    stderr.String(),
+			ExitCode:  cmd.ProcessState.ExitCode(),
+		}
+	}
 	return nil
 }
 
