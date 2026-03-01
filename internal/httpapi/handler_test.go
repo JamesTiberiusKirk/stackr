@@ -269,15 +269,43 @@ func TestEnsureStackExists(t *testing.T) {
 	stacksDir := filepath.Join(tmpDir, "stacks")
 	require.NoError(t, os.MkdirAll(stacksDir, 0o755))
 
-	// Create a valid stack
+	// Create a valid local stack
 	validStack := filepath.Join(stacksDir, "valid")
 	require.NoError(t, os.MkdirAll(validStack, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(validStack, "docker-compose.yml"), []byte("services: {}"), 0o644))
 
+	// Create a valid remote stack (stackr-repo.yml only, no docker-compose.yml)
+	remoteStack := filepath.Join(stacksDir, "remote-app")
+	require.NoError(t, os.MkdirAll(remoteStack, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(remoteStack, "stackr-repo.yml"), []byte("remote_repo: {}"), 0o644))
+
+	// Create a stack with new stackr/config.yaml
+	newCfgStack := filepath.Join(stacksDir, "newcfg-app")
+	require.NoError(t, os.MkdirAll(filepath.Join(newCfgStack, "stackr"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(newCfgStack, "stackr", "config.yaml"), []byte("compose_files: [docker-compose.yml]"), 0o644))
+
+	// Create an empty stack directory (neither file)
+	emptyStack := filepath.Join(stacksDir, "empty")
+	require.NoError(t, os.MkdirAll(emptyStack, 0o755))
+
 	h := &Handler{cfg: config.Config{StacksDir: stacksDir}}
 
-	t.Run("valid stack succeeds", func(t *testing.T) {
+	t.Run("local stack succeeds", func(t *testing.T) {
 		require.NoError(t, h.ensureStackExists("valid"))
+	})
+
+	t.Run("remote stack succeeds", func(t *testing.T) {
+		require.NoError(t, h.ensureStackExists("remote-app"))
+	})
+
+	t.Run("new config stack succeeds", func(t *testing.T) {
+		require.NoError(t, h.ensureStackExists("newcfg-app"))
+	})
+
+	t.Run("empty stack dir fails", func(t *testing.T) {
+		err := h.ensureStackExists("empty")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "has no docker-compose.yml")
 	})
 
 	t.Run("nonexistent stack fails", func(t *testing.T) {

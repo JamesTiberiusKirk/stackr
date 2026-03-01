@@ -392,6 +392,120 @@ remote_repo:
 	require.NotEmpty(t, version)
 }
 
+func TestEnsureRemoteStack_NewConfigPath(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	// Create a fake git repository to clone from
+	sourceRepo := filepath.Join(tmpDir, "source")
+	require.NoError(t, os.MkdirAll(sourceRepo, 0o755))
+	initGitRepo(t, sourceRepo)
+
+	// Create stack definition using new stackr/config.yaml
+	stacksDir := filepath.Join(tmpDir, "stacks")
+	stackDir := filepath.Join(stacksDir, "myapp")
+	require.NoError(t, os.MkdirAll(filepath.Join(stackDir, "stackr"), 0o755))
+
+	cfgYaml := `
+remote_repo:
+  url: ` + sourceRepo + `
+  branch: main
+  release:
+    type: commit
+    ref: HEAD
+
+compose_files:
+  - docker-compose.yml
+  - docker-compose.prod.yml
+
+env:
+  LOG_LEVEL: debug
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "stackr", "config.yaml"),
+		[]byte(cfgYaml),
+		0o644,
+	))
+
+	cfg := config.Config{
+		RepoRoot:  tmpDir,
+		StacksDir: stacksDir,
+		Global: config.GlobalConfig{
+			RemoteStacksDir: ".stackr-repos",
+		},
+	}
+
+	manager := NewManager(cfg)
+	envVars := map[string]string{}
+
+	err := manager.EnsureRemoteStack(context.Background(), "myapp", envVars)
+	require.NoError(t, err)
+
+	// Verify repo was cloned
+	repoPath := filepath.Join(tmpDir, ".stackr-repos", "myapp")
+	require.DirExists(t, repoPath)
+	require.DirExists(t, filepath.Join(repoPath, ".git"))
+}
+
+func TestBuildMergedEnv_NewConfigPath(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	// Create source repository with deployment config
+	sourceRepo := filepath.Join(tmpDir, "source")
+	require.NoError(t, os.MkdirAll(sourceRepo, 0o755))
+	initGitRepo(t, sourceRepo)
+
+	deploymentYaml := `
+env:
+  REMOTE_VAR: remote_value
+`
+	deploymentFile := filepath.Join(sourceRepo, ".stackr-deployment.yaml")
+	require.NoError(t, os.WriteFile(deploymentFile, []byte(deploymentYaml), 0o644))
+	commitFile(t, sourceRepo, ".stackr-deployment.yaml", "Add deployment config")
+
+	// Create stack definition using new stackr/config.yaml
+	stacksDir := filepath.Join(tmpDir, "stacks")
+	stackDir := filepath.Join(stacksDir, "myapp")
+	require.NoError(t, os.MkdirAll(filepath.Join(stackDir, "stackr"), 0o755))
+
+	cfgYaml := `
+remote_repo:
+  url: ` + sourceRepo + `
+  branch: main
+  release:
+    type: commit
+    ref: HEAD
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "stackr", "config.yaml"),
+		[]byte(cfgYaml),
+		0o644,
+	))
+
+	cfg := config.Config{
+		RepoRoot:  tmpDir,
+		StacksDir: stacksDir,
+		Global: config.GlobalConfig{
+			RemoteStacksDir: ".stackr-repos",
+		},
+	}
+
+	manager := NewManager(cfg)
+	envVars := map[string]string{}
+
+	// Clone first
+	err := manager.EnsureRemoteStack(context.Background(), "myapp", envVars)
+	require.NoError(t, err)
+
+	// Build merged env
+	baseEnv := map[string]string{"BASE_VAR": "base_value"}
+	mergedEnv, err := manager.BuildMergedEnv(context.Background(), "myapp", baseEnv)
+	require.NoError(t, err)
+	require.Equal(t, "base_value", mergedEnv["BASE_VAR"])
+	require.Equal(t, "remote_value", mergedEnv["REMOTE_VAR"])
+}
+
 // Helper functions for git operations in tests
 
 func initGitRepo(t *testing.T, path string) {

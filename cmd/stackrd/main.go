@@ -76,6 +76,8 @@ func main() {
 		removalHandler.Initialize(initialStacks)
 	}
 
+	const watchCallbackTimeout = 2 * time.Minute
+
 	var watchCancel context.CancelFunc
 	{
 		var watchCtx context.Context
@@ -83,19 +85,33 @@ func main() {
 		if err := watch.WatchStacks(watchCtx, cfg.StacksDir, func(path string) {
 			log.Printf("stack change detected (%s), checking for changes", path)
 
-			// Load current stack state
-			currentStacks, err := loadStackNames(cfg)
-			if err != nil {
-				log.Printf("failed to load current stacks: %v", err)
-				return
-			}
+			cbCtx, cbCancel := context.WithTimeout(watchCtx, watchCallbackTimeout)
+			defer cbCancel()
 
-			// Check for removals BEFORE reloading cron (important for cleanup ordering)
-			removalHandler.CheckForRemovals(currentStacks)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
 
-			// Then reload cron jobs
-			if err := scheduler.Reload(); err != nil {
-				log.Printf("failed to reload cron scheduler: %v", err)
+				// Load current stack state
+				currentStacks, err := loadStackNames(cfg)
+				if err != nil {
+					log.Printf("failed to load current stacks: %v", err)
+					return
+				}
+
+				// Check for removals BEFORE reloading cron (important for cleanup ordering)
+				removalHandler.CheckForRemovals(currentStacks)
+
+				// Then reload cron jobs
+				if err := scheduler.Reload(); err != nil {
+					log.Printf("failed to reload cron scheduler: %v", err)
+				}
+			}()
+
+			select {
+			case <-done:
+			case <-cbCtx.Done():
+				log.Printf("warning: watcher callback timed out after %v", watchCallbackTimeout)
 			}
 		}); err != nil {
 			log.Printf("stack watcher disabled: %v", err)

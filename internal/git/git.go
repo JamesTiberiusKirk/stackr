@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
+
+// OperationTimeout is the maximum time allowed for a single git operation.
+const OperationTimeout = 5 * time.Minute
 
 // Client wraps git operations for a specific repository
 type Client struct {
@@ -46,8 +50,17 @@ func NewClient(repoPath string) *Client {
 	return &Client{repoPath: repoPath}
 }
 
+// withTimeout returns a context with OperationTimeout applied.
+// If the parent context already has an earlier deadline, that is preserved.
+func withTimeout(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, OperationTimeout)
+}
+
 // Clone clones a git repository
 func Clone(ctx context.Context, destination string, opts CloneOptions) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	args := []string{"clone"}
 
 	// Add branch if specified
@@ -83,6 +96,9 @@ func Clone(ctx context.Context, destination string, opts CloneOptions) error {
 
 // Pull fetches and merges changes from remote
 func (c *Client) Pull(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "pull")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -103,6 +119,9 @@ func (c *Client) Pull(ctx context.Context) error {
 
 // Fetch downloads objects and refs from remote
 func (c *Client) Fetch(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "fetch", "--tags")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -123,6 +142,9 @@ func (c *Client) Fetch(ctx context.Context) error {
 
 // Checkout switches to a specific ref (tag, commit, or branch)
 func (c *Client) Checkout(ctx context.Context, opts CheckoutOptions) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "checkout", opts.Ref)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -143,6 +165,9 @@ func (c *Client) Checkout(ctx context.Context, opts CheckoutOptions) error {
 
 // CurrentRef returns the currently checked out ref
 func (c *Client) CurrentRef(ctx context.Context) (string, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "rev-parse", "--abbrev-ref", "HEAD")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -163,6 +188,9 @@ func (c *Client) CurrentRef(ctx context.Context) (string, error) {
 
 // CurrentCommit returns the current commit hash
 func (c *Client) CurrentCommit(ctx context.Context) (string, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "rev-parse", "HEAD")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -183,6 +211,9 @@ func (c *Client) CurrentCommit(ctx context.Context) (string, error) {
 
 // IsClean returns true if the working directory has no uncommitted changes
 func (c *Client) IsClean(ctx context.Context) (bool, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "git", "-C", c.repoPath, "status", "--porcelain")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

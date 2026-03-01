@@ -44,14 +44,19 @@ func GetRemoteStackStatus(cfg config.Config, stackName string) (*RemoteStackStat
 		return status, nil
 	}
 
-	// Load remote stack definition
-	def, err := config.LoadRemoteStackDefinition(cfg.StacksDir, stackName)
-	if err != nil {
-		status.Error = fmt.Sprintf("failed to load remote definition: %v", err)
+	// Load per-stack config
+	stackDir := filepath.Join(cfg.StacksDir, stackName)
+	localCfg, err := config.LoadStackLocalConfig(stackDir)
+	if err != nil || !localCfg.IsRemote() {
+		errMsg := "not a remote stack"
+		if err != nil {
+			errMsg = fmt.Sprintf("failed to load stack config: %v", err)
+		}
+		status.Error = errMsg
 		return status, nil
 	}
 
-	status.ConfiguredRef = def.RemoteRepo.Release.Ref
+	status.ConfiguredRef = localCfg.RemoteRepo.Release.Ref
 
 	// Check if repo is cloned
 	remoteRepoDir := cfg.Global.RemoteStacksDir

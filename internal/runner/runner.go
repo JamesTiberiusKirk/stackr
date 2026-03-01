@@ -104,7 +104,7 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 		}
 
 		remoteMgr := remote.NewManager(r.cfg)
-		if err := remoteMgr.EnsureRemoteStack(context.Background(), stack, envVals); err != nil {
+		if err := remoteMgr.EnsureRemoteStack(ctx, stack, envVals); err != nil {
 			// Use cached version on git failure (graceful degradation)
 			log.Printf("warning: git sync failed for %s, using cached version: %v", stack, err)
 		}
@@ -126,8 +126,19 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 	opts := parseDeployArgs(stackCfg.Args)
 	opts.Stacks = []string{stack}
 
-	if err := manager.Run(ctx, opts); err != nil {
-		log.Printf("deployment failed for stack=%s: %v", stack, err)
+	// For remote stacks, wrap deploy in retry logic to handle the case where
+	// a git tag exists but the Docker image hasn't been published yet.
+	runDeploy := func() error { return manager.Run(ctx, opts) }
+	var runErr error
+	if stackInfo.Type == stackcmd.StackTypeRemote {
+		retryCfg := remote.DefaultRetryConfig()
+		runErr = remote.RetryImagePull(ctx, runDeploy, retryCfg)
+	} else {
+		runErr = runDeploy()
+	}
+
+	if runErr != nil {
+		log.Printf("deployment failed for stack=%s: %v", stack, runErr)
 		log.Printf("deployment stdout: (%d bytes, redacted from logs)", stdout.Len())
 		log.Printf("deployment stderr: (%d bytes, redacted from logs)", stderr.Len())
 

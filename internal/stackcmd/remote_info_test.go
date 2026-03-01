@@ -312,6 +312,92 @@ func TestCleanRemoteStack_LocalStack(t *testing.T) {
 	require.Contains(t, err.Error(), "not a remote stack")
 }
 
+func TestGetRemoteStackStatus_NewConfigPath(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	stacksDir := filepath.Join(tmpDir, "stacks")
+	stackDir := filepath.Join(stacksDir, "remote-app")
+	require.NoError(t, os.MkdirAll(filepath.Join(stackDir, "stackr"), 0o755))
+
+	cfgYaml := `
+remote_repo:
+  url: git@github.com:org/app.git
+  branch: main
+  release:
+    type: tag
+    ref: ${APP_VERSION}
+
+compose_files:
+  - docker-compose.yml
+  - docker-compose.prod.yml
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "stackr", "config.yaml"),
+		[]byte(cfgYaml),
+		0o644,
+	))
+
+	cfg := config.Config{
+		RepoRoot:  tmpDir,
+		StacksDir: stacksDir,
+		Global: config.GlobalConfig{
+			RemoteStacksDir: ".stackr-repos",
+		},
+	}
+
+	status, err := GetRemoteStackStatus(cfg, "remote-app")
+	require.NoError(t, err)
+	require.Equal(t, "remote-app", status.Name)
+	require.Equal(t, StackTypeRemote, status.Type)
+	require.False(t, status.IsCloned)
+	require.Equal(t, "${APP_VERSION}", status.ConfiguredRef)
+}
+
+func TestListRemoteStacks_NewConfigPath(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	stacksDir := filepath.Join(tmpDir, "stacks")
+
+	// Create local stack
+	require.NoError(t, os.MkdirAll(filepath.Join(stacksDir, "local-app"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stacksDir, "local-app", "docker-compose.yml"),
+		[]byte("version: '3'"),
+		0o644,
+	))
+
+	// Create remote stack using new config path
+	remoteDir := filepath.Join(stacksDir, "remote-app")
+	require.NoError(t, os.MkdirAll(filepath.Join(remoteDir, "stackr"), 0o755))
+	cfgYaml := `
+remote_repo:
+  url: git@github.com:org/app.git
+  release:
+    type: tag
+    ref: v1.0.0
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(remoteDir, "stackr", "config.yaml"),
+		[]byte(cfgYaml),
+		0o644,
+	))
+
+	cfg := config.Config{
+		RepoRoot:  tmpDir,
+		StacksDir: stacksDir,
+		Global: config.GlobalConfig{
+			RemoteStacksDir: ".stackr-repos",
+		},
+	}
+
+	remoteStacks, err := ListRemoteStacks(cfg)
+	require.NoError(t, err)
+	require.Len(t, remoteStacks, 1)
+	require.Equal(t, "remote-app", remoteStacks[0].Name)
+}
+
 // Helper function to initialize a test git repo
 func initTestGitRepo(t *testing.T, path string) {
 	t.Helper()

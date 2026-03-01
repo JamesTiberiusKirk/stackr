@@ -29,14 +29,23 @@ type RemoteStackDefinition struct {
 	RemoteRepo RemoteStackConfig `yaml:"remote_repo"`
 }
 
+// DeploymentStackrConfig holds stackr-specific settings from .stackr-deployment.yaml
+type DeploymentStackrConfig struct {
+	Release string `yaml:"release"` // "tag" or "commit" — overrides stackr-repo.yml release.type if set
+}
+
 // DeploymentConfig is the content of .stackr-deployment.yaml in remote repo
 type DeploymentConfig struct {
-	Env map[string]string `yaml:"env"`
+	Env    map[string]string      `yaml:"env"`
+	Domain string                 `yaml:"domain"` // Overrides STACKR_PROV_DOMAIN if set
+	Stackr DeploymentStackrConfig `yaml:"stackr"`
 }
 
 var envVarPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
-// LoadRemoteStackDefinition reads stacks/{name}/stackr-repo.yml
+// Deprecated: LoadRemoteStackDefinition reads the legacy stacks/{name}/stackr-repo.yml.
+// New code should use LoadStackLocalConfig instead, which handles both the new
+// stackr/config.yaml and the legacy stackr-repo.yml format.
 func LoadRemoteStackDefinition(stacksDir, stackName string) (*RemoteStackDefinition, error) {
 	path := filepath.Join(stacksDir, stackName, "stackr-repo.yml")
 	content, err := os.ReadFile(path)

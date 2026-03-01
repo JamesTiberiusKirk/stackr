@@ -22,9 +22,17 @@ const (
 
 // StackInfo contains information about a discovered stack
 type StackInfo struct {
-	Name        string    // Stack name
-	Type        StackType // Local or remote
-	ComposePath string    // Full path to docker-compose.yml
+	Name         string    // Stack name
+	Type         StackType // Local or remote
+	ComposePaths []string  // Full paths to compose files (first is primary)
+}
+
+// PrimaryComposePath returns the first (primary) compose file path.
+func (s StackInfo) PrimaryComposePath() string {
+	if len(s.ComposePaths) == 0 {
+		return ""
+	}
+	return s.ComposePaths[0]
 }
 
 // DiscoverStacks scans the stacks directory and returns both local and remote stacks
@@ -44,55 +52,13 @@ func DiscoverStacks(cfg config.Config) ([]StackInfo, error) {
 		stackName := entry.Name()
 		stackDir := filepath.Join(cfg.StacksDir, stackName)
 
-		// Check for docker-compose.yml (local stack)
-		localComposePath := filepath.Join(stackDir, "docker-compose.yml")
-		hasLocalCompose := fileExists(localComposePath)
-
-		// Check for stackr-repo.yml (remote stack definition)
-		remoteDefPath := filepath.Join(stackDir, "stackr-repo.yml")
-		hasRemoteDef := fileExists(remoteDefPath)
-
-		// Determine stack type and compose path
-		if hasLocalCompose && hasRemoteDef {
-			// Ambiguous: has both local compose and remote definition
-			return nil, fmt.Errorf("stack %q has both docker-compose.yml and stackr-repo.yml - this is ambiguous, please use one or the other", stackName)
+		info, err := resolveStack(cfg, stackName, stackDir)
+		if err != nil {
+			return nil, err
 		}
-
-		if hasLocalCompose {
-			// Local stack
-			stacks = append(stacks, StackInfo{
-				Name:        stackName,
-				Type:        StackTypeLocal,
-				ComposePath: localComposePath,
-			})
-		} else if hasRemoteDef {
-			// Remote stack - compose path will be in remote repo
-			// Load definition to get the path
-			def, err := config.LoadRemoteStackDefinition(cfg.StacksDir, stackName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load remote stack definition for %q: %w", stackName, err)
-			}
-
-			// Build remote compose path
-			remoteRepoDir := cfg.Global.RemoteStacksDir
-			if !filepath.IsAbs(remoteRepoDir) {
-				remoteRepoDir = filepath.Join(cfg.RepoRoot, remoteRepoDir)
-			}
-
-			var composePath string
-			if def.RemoteRepo.Path != "" && def.RemoteRepo.Path != "." {
-				composePath = filepath.Join(remoteRepoDir, stackName, def.RemoteRepo.Path, "docker-compose.yml")
-			} else {
-				composePath = filepath.Join(remoteRepoDir, stackName, "docker-compose.yml")
-			}
-
-			stacks = append(stacks, StackInfo{
-				Name:        stackName,
-				Type:        StackTypeRemote,
-				ComposePath: composePath,
-			})
+		if info != nil {
+			stacks = append(stacks, *info)
 		}
-		// If neither exists, skip this directory
 	}
 
 	// Sort by name for consistency
@@ -103,7 +69,7 @@ func DiscoverStacks(cfg config.Config) ([]StackInfo, error) {
 	return stacks, nil
 }
 
-// ResolveStackPath resolves a stack name to its compose path and type
+// ResolveStackPath resolves a stack name to its compose paths and type
 func ResolveStackPath(cfg config.Config, stackName string) (StackInfo, error) {
 	stackDir := filepath.Join(cfg.StacksDir, stackName)
 
@@ -112,55 +78,70 @@ func ResolveStackPath(cfg config.Config, stackName string) (StackInfo, error) {
 		return StackInfo{}, fmt.Errorf("stack %q does not exist", stackName)
 	}
 
-	// Check for local docker-compose.yml
-	localComposePath := filepath.Join(stackDir, "docker-compose.yml")
-	hasLocalCompose := fileExists(localComposePath)
-
-	// Check for remote definition
-	remoteDefPath := filepath.Join(stackDir, "stackr-repo.yml")
-	hasRemoteDef := fileExists(remoteDefPath)
-
-	// Validate stack type
-	if hasLocalCompose && hasRemoteDef {
-		return StackInfo{}, fmt.Errorf("stack %q has both docker-compose.yml and stackr-repo.yml - this is ambiguous", stackName)
-	}
-
-	if !hasLocalCompose && !hasRemoteDef {
-		return StackInfo{}, fmt.Errorf("stack %q has neither docker-compose.yml nor stackr-repo.yml", stackName)
-	}
-
-	if hasLocalCompose {
-		// Local stack
-		return StackInfo{
-			Name:        stackName,
-			Type:        StackTypeLocal,
-			ComposePath: localComposePath,
-		}, nil
-	}
-
-	// Remote stack
-	def, err := config.LoadRemoteStackDefinition(cfg.StacksDir, stackName)
+	info, err := resolveStack(cfg, stackName, stackDir)
 	if err != nil {
-		return StackInfo{}, fmt.Errorf("failed to load remote stack definition: %w", err)
+		return StackInfo{}, err
+	}
+	if info == nil {
+		return StackInfo{}, fmt.Errorf("stack %q has neither docker-compose.yml, stackr/config.yaml, nor stackr-repo.yml", stackName)
+	}
+	return *info, nil
+}
+
+// resolveStack loads StackLocalConfig and builds a StackInfo. Returns nil if the
+// directory does not look like a stack (no compose file, no config).
+func resolveStack(cfg config.Config, stackName, stackDir string) (*StackInfo, error) {
+	localCfg, err := config.LoadStackLocalConfig(stackDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config for stack %q: %w", stackName, err)
 	}
 
-	// Build remote compose path
+	if localCfg.IsRemote() {
+		return resolveRemoteStack(cfg, stackName, localCfg)
+	}
+
+	return resolveLocalStack(stackDir, stackName, localCfg)
+}
+
+func resolveLocalStack(stackDir, stackName string, localCfg *config.StackLocalConfig) (*StackInfo, error) {
+	// Build compose paths relative to the stack dir
+	var paths []string
+	for _, f := range localCfg.ComposeFiles {
+		paths = append(paths, filepath.Join(stackDir, f))
+	}
+
+	// At least the primary compose file must exist
+	if len(paths) == 0 || !fileExists(paths[0]) {
+		return nil, nil
+	}
+
+	return &StackInfo{
+		Name:         stackName,
+		Type:         StackTypeLocal,
+		ComposePaths: paths,
+	}, nil
+}
+
+func resolveRemoteStack(cfg config.Config, stackName string, localCfg *config.StackLocalConfig) (*StackInfo, error) {
 	remoteRepoDir := cfg.Global.RemoteStacksDir
 	if !filepath.IsAbs(remoteRepoDir) {
 		remoteRepoDir = filepath.Join(cfg.RepoRoot, remoteRepoDir)
 	}
 
-	var composePath string
-	if def.RemoteRepo.Path != "" && def.RemoteRepo.Path != "." {
-		composePath = filepath.Join(remoteRepoDir, stackName, def.RemoteRepo.Path, "docker-compose.yml")
-	} else {
-		composePath = filepath.Join(remoteRepoDir, stackName, "docker-compose.yml")
+	baseDir := filepath.Join(remoteRepoDir, stackName)
+	if localCfg.RemoteRepo.Path != "" && localCfg.RemoteRepo.Path != "." {
+		baseDir = filepath.Join(remoteRepoDir, stackName, localCfg.RemoteRepo.Path)
 	}
 
-	return StackInfo{
-		Name:        stackName,
-		Type:        StackTypeRemote,
-		ComposePath: composePath,
+	var paths []string
+	for _, f := range localCfg.ComposeFiles {
+		paths = append(paths, filepath.Join(baseDir, f))
+	}
+
+	return &StackInfo{
+		Name:         stackName,
+		Type:         StackTypeRemote,
+		ComposePaths: paths,
 	}, nil
 }
 

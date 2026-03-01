@@ -57,23 +57,24 @@ remote_repo:
 	// Verify stacks are sorted by name
 	require.Equal(t, "local-app", stacks[0].Name)
 	require.Equal(t, StackTypeLocal, stacks[0].Type)
-	require.Contains(t, stacks[0].ComposePath, "local-app/docker-compose.yml")
+	require.Contains(t, stacks[0].PrimaryComposePath(), "local-app/docker-compose.yml")
 
 	require.Equal(t, "remote-app", stacks[1].Name)
 	require.Equal(t, StackTypeRemote, stacks[1].Type)
-	require.Contains(t, stacks[1].ComposePath, ".stackr-repos/remote-app/docker-compose.yml")
+	require.Contains(t, stacks[1].PrimaryComposePath(), ".stackr-repos/remote-app/docker-compose.yml")
 }
 
-func TestDiscoverStacks_AmbiguousStack(t *testing.T) {
+func TestDiscoverStacks_LegacyRemoteWithLocalCompose(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	stacksDir := filepath.Join(tmpDir, "stacks")
 	require.NoError(t, os.MkdirAll(stacksDir, 0o755))
 
-	// Create stack with BOTH docker-compose.yml and stackr.yaml
-	ambiguousStack := filepath.Join(stacksDir, "ambiguous")
-	require.NoError(t, os.MkdirAll(ambiguousStack, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(ambiguousStack, "docker-compose.yml"), []byte("version: '3'"), 0o644))
+	// Having both docker-compose.yml and stackr-repo.yml is valid:
+	// stackr-repo.yml takes priority (remote stack)
+	bothStack := filepath.Join(stacksDir, "both")
+	require.NoError(t, os.MkdirAll(bothStack, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(bothStack, "docker-compose.yml"), []byte("version: '3'"), 0o644))
 
 	stackrYaml := `
 remote_repo:
@@ -82,7 +83,7 @@ remote_repo:
     type: tag
     ref: v1.0.0
 `
-	require.NoError(t, os.WriteFile(filepath.Join(ambiguousStack, "stackr-repo.yml"), []byte(stackrYaml), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(bothStack, "stackr-repo.yml"), []byte(stackrYaml), 0o644))
 
 	cfg := config.Config{
 		StacksDir: stacksDir,
@@ -92,9 +93,47 @@ remote_repo:
 		},
 	}
 
-	_, err := DiscoverStacks(cfg)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "ambiguous")
+	stacks, err := DiscoverStacks(cfg)
+	require.NoError(t, err)
+	require.Len(t, stacks, 1)
+	require.Equal(t, StackTypeRemote, stacks[0].Type)
+}
+
+func TestDiscoverStacks_NewConfigPath(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	stacksDir := filepath.Join(tmpDir, "stacks")
+
+	// Create stack with stackr/config.yaml (local, multi-compose)
+	stackDir := filepath.Join(stacksDir, "myapp")
+	require.NoError(t, os.MkdirAll(filepath.Join(stackDir, "stackr"), 0o755))
+	cfgYaml := `
+compose_files:
+  - docker-compose.yml
+  - docker-compose.prod.yml
+env:
+  LOG_LEVEL: debug
+`
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "stackr", "config.yaml"), []byte(cfgYaml), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "docker-compose.yml"), []byte("services: {}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "docker-compose.prod.yml"), []byte("services: {}"), 0o644))
+
+	cfg := config.Config{
+		StacksDir: stacksDir,
+		RepoRoot:  tmpDir,
+		Global: config.GlobalConfig{
+			RemoteStacksDir: ".stackr-repos",
+		},
+	}
+
+	stacks, err := DiscoverStacks(cfg)
+	require.NoError(t, err)
+	require.Len(t, stacks, 1)
+	require.Equal(t, "myapp", stacks[0].Name)
+	require.Equal(t, StackTypeLocal, stacks[0].Type)
+	require.Len(t, stacks[0].ComposePaths, 2)
+	require.Contains(t, stacks[0].ComposePaths[0], "docker-compose.yml")
+	require.Contains(t, stacks[0].ComposePaths[1], "docker-compose.prod.yml")
 }
 
 func TestResolveStackPath_LocalStack(t *testing.T) {
@@ -121,7 +160,7 @@ func TestResolveStackPath_LocalStack(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "myapp", info.Name)
 	require.Equal(t, StackTypeLocal, info.Type)
-	require.Equal(t, composePath, info.ComposePath)
+	require.Equal(t, composePath, info.PrimaryComposePath())
 }
 
 func TestResolveStackPath_RemoteStack(t *testing.T) {
@@ -156,7 +195,7 @@ remote_repo:
 	require.NoError(t, err)
 	require.Equal(t, "remote-app", info.Name)
 	require.Equal(t, StackTypeRemote, info.Type)
-	require.Contains(t, info.ComposePath, ".stackr-repos/remote-app/deploy/docker-compose.yml")
+	require.Contains(t, info.PrimaryComposePath(), ".stackr-repos/remote-app/deploy/docker-compose.yml")
 }
 
 func TestResolveStackPath_StackNotFound(t *testing.T) {
@@ -192,19 +231,19 @@ func TestResolveStackPath_NoComposeOrDef(t *testing.T) {
 
 	_, err := ResolveStackPath(cfg, "empty")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "neither docker-compose.yml nor stackr-repo.yml")
+	require.Contains(t, err.Error(), "has neither docker-compose.yml")
 }
 
-func TestResolveStackPath_Ambiguous(t *testing.T) {
+func TestResolveStackPath_LegacyWithLocalCompose(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	stacksDir := filepath.Join(tmpDir, "stacks")
 	require.NoError(t, os.MkdirAll(stacksDir, 0o755))
 
-	// Create stack with both compose and stackr.yaml
-	ambiguousStack := filepath.Join(stacksDir, "ambiguous")
-	require.NoError(t, os.MkdirAll(ambiguousStack, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(ambiguousStack, "docker-compose.yml"), []byte("version: '3'"), 0o644))
+	// Having both docker-compose.yml and stackr-repo.yml: legacy config takes priority
+	bothStack := filepath.Join(stacksDir, "both")
+	require.NoError(t, os.MkdirAll(bothStack, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(bothStack, "docker-compose.yml"), []byte("version: '3'"), 0o644))
 
 	stackrYaml := `
 remote_repo:
@@ -213,14 +252,17 @@ remote_repo:
     type: tag
     ref: v1.0.0
 `
-	require.NoError(t, os.WriteFile(filepath.Join(ambiguousStack, "stackr-repo.yml"), []byte(stackrYaml), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(bothStack, "stackr-repo.yml"), []byte(stackrYaml), 0o644))
 
 	cfg := config.Config{
 		StacksDir: stacksDir,
 		RepoRoot:  tmpDir,
+		Global: config.GlobalConfig{
+			RemoteStacksDir: ".stackr-repos",
+		},
 	}
 
-	_, err := ResolveStackPath(cfg, "ambiguous")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "ambiguous")
+	info, err := ResolveStackPath(cfg, "both")
+	require.NoError(t, err)
+	require.Equal(t, StackTypeRemote, info.Type)
 }

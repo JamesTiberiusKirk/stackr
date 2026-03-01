@@ -38,17 +38,23 @@ func NewManager(cfg config.Config) *Manager {
 // - Only changes version if needed (based on ref resolution)
 // - Gracefully degrades if git unreachable (uses cached version)
 func (m *Manager) EnsureRemoteStack(ctx context.Context, stackName string, envVars map[string]string) error {
-	// Load remote stack definition
-	def, err := config.LoadRemoteStackDefinition(m.cfg.StacksDir, stackName)
+	// Load per-stack config (supports both stackr/config.yaml and legacy stackr-repo.yml)
+	stackDir := filepath.Join(m.cfg.StacksDir, stackName)
+	localCfg, err := config.LoadStackLocalConfig(stackDir)
 	if err != nil {
-		return fmt.Errorf("failed to load remote stack definition: %w", err)
+		return fmt.Errorf("failed to load stack config: %w", err)
+	}
+	if !localCfg.IsRemote() {
+		return fmt.Errorf("stack %q is not a remote stack", stackName)
 	}
 
+	repo := localCfg.RemoteRepo
+
 	// Resolve version ref from env vars
-	resolvedRef, err := config.ResolveVersionRef(def.RemoteRepo.Release.Ref, envVars)
+	resolvedRef, err := config.ResolveVersionRef(repo.Release.Ref, envVars)
 	if err != nil {
 		// Extract the env var name from the ref pattern
-		ref := def.RemoteRepo.Release.Ref
+		ref := repo.Release.Ref
 		if strings.HasPrefix(ref, "${") && strings.HasSuffix(ref, "}") {
 			envVar := ref[2 : len(ref)-1]
 			return NewVersionRefError(stackName, ref, envVar)
@@ -64,9 +70,9 @@ func (m *Manager) EnsureRemoteStack(ctx context.Context, stackName string, envVa
 
 	if !repoExists {
 		// Clone the repository
-		log.Printf("cloning remote stack %s from %s", stackName, def.RemoteRepo.URL)
-		if err := m.cloneRepo(ctx, def.RemoteRepo.URL, def.RemoteRepo.Branch, repoRoot); err != nil {
-			return NewCloneError(stackName, def.RemoteRepo.URL, err)
+		log.Printf("cloning remote stack %s from %s", stackName, repo.URL)
+		if err := m.cloneRepo(ctx, repo.URL, repo.Branch, repoRoot); err != nil {
+			return NewCloneError(stackName, repo.URL, err)
 		}
 	}
 
@@ -80,9 +86,18 @@ func (m *Manager) EnsureRemoteStack(ctx context.Context, stackName string, envVa
 		// Continue with cached version - this is the graceful degradation
 	}
 
+	// Check for release type override from .stackr-deployment.yaml
+	releaseType := repo.Release.Type
+	repoPath := m.getRepoPath(stackName, repo.Path)
+	if deployCfg, err := config.LoadDeploymentConfig(repoPath); err == nil {
+		if deployCfg.Stackr.Release != "" {
+			releaseType = deployCfg.Stackr.Release
+		}
+	}
+
 	// Check if we need to checkout a different version
-	if err := m.ensureCorrectVersion(ctx, client, stackName, resolvedRef, def.RemoteRepo.Release.Type); err != nil {
-		return NewCheckoutError(stackName, resolvedRef, def.RemoteRepo.Release.Type, err)
+	if err := m.ensureCorrectVersion(ctx, client, stackName, resolvedRef, releaseType); err != nil {
+		return NewCheckoutError(stackName, resolvedRef, repo.Release.Type, err)
 	}
 
 	log.Printf("remote stack %s ready at version %s", stackName, resolvedRef)
@@ -112,13 +127,17 @@ func (m *Manager) GetCurrentVersion(ctx context.Context, stackName string) (stri
 // BuildMergedEnv merges global config with remote deployment config
 // Priority: stack-specific > remote deployment > global
 func (m *Manager) BuildMergedEnv(ctx context.Context, stackName string, baseEnv map[string]string) (map[string]string, error) {
-	// Load remote stack definition to get path
-	def, err := config.LoadRemoteStackDefinition(m.cfg.StacksDir, stackName)
+	// Load per-stack config to get path
+	stackDir := filepath.Join(m.cfg.StacksDir, stackName)
+	localCfg, err := config.LoadStackLocalConfig(stackDir)
 	if err != nil {
-		return baseEnv, fmt.Errorf("failed to load remote stack definition: %w", err)
+		return baseEnv, fmt.Errorf("failed to load stack config: %w", err)
+	}
+	if !localCfg.IsRemote() {
+		return baseEnv, fmt.Errorf("stack %q is not a remote stack", stackName)
 	}
 
-	repoPath := m.getRepoPath(stackName, def.RemoteRepo.Path)
+	repoPath := m.getRepoPath(stackName, localCfg.RemoteRepo.Path)
 
 	// Load deployment config from remote repo
 	deployConfig, err := config.LoadDeploymentConfig(repoPath)
@@ -133,6 +152,11 @@ func (m *Manager) BuildMergedEnv(ctx context.Context, stackName string, baseEnv 
 	}
 	for k, v := range deployConfig.Env {
 		merged[k] = v
+	}
+
+	// Apply domain override from deployment config
+	if deployConfig.Domain != "" {
+		merged["STACKR_PROV_DOMAIN"] = deployConfig.Domain
 	}
 
 	return merged, nil

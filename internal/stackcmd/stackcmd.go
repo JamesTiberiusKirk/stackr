@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"os/exec"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/envfile"
+	"github.com/jamestiberiuskirk/stackr/internal/fsutil"
 	"github.com/jamestiberiuskirk/stackr/internal/remote"
 )
 
@@ -186,8 +186,11 @@ func (m *Manager) runStack(ctx context.Context, stack string, opts Options) erro
 		}
 	}
 
-	composePath := stackInfo.ComposePath
-	stackDir := filepath.Dir(composePath)
+	composePaths := stackInfo.ComposePaths
+	if len(composePaths) == 0 {
+		return fmt.Errorf("stack %s: no compose files configured", stack)
+	}
+	stackDir := filepath.Dir(composePaths[0])
 
 	// Update .env with new tag if specified
 	if opts.Tag != "" && opts.Update {
@@ -212,7 +215,7 @@ func (m *Manager) runStack(ctx context.Context, stack string, opts Options) erro
 		return m.backupStack(stack, stackDir, opts)
 	}
 
-	vars, err := collectEnvVars(composePath)
+	vars, err := collectAllEnvVars(composePaths)
 	if err != nil {
 		return fmt.Errorf("stack %s: failed to parse env vars: %w", stack, err)
 	}
@@ -223,7 +226,7 @@ func (m *Manager) runStack(ctx context.Context, stack string, opts Options) erro
 	}
 
 	debugf(opts.Debug, "%s: running compose operations", stack)
-	return m.runCompose(ctx, stack, composePath, vars, opts)
+	return m.runCompose(ctx, stack, composePaths, vars, opts)
 }
 
 func (m *Manager) loadAllStacks() ([]string, error) {
@@ -341,9 +344,9 @@ func (m *Manager) ensureStackVars(stack string, vars []string, opts Options) err
 	return nil
 }
 
-func (m *Manager) runCompose(ctx context.Context, stack, composePath string, vars []string, opts Options) error {
+func (m *Manager) runCompose(ctx context.Context, stack string, composePaths []string, vars []string, opts Options) error {
 	envMap := m.baseEnvCopy()
-	stackEnv, err := m.buildStackEnv(stack)
+	stackEnv, err := m.buildStackEnv(ctx, stack)
 	if err != nil {
 		return err
 	}
@@ -351,7 +354,11 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 		envMap[k] = v
 	}
 
-	envMap["DCFP"] = composePath
+	// Set DCFP to primary compose path, plus indexed variants for multi-file
+	envMap["DCFP"] = composePaths[0]
+	for i, p := range composePaths {
+		envMap[fmt.Sprintf("DCFP_%d", i)] = p
+	}
 
 	// Automatically check and append missing env vars before validation
 	if err := m.ensureStackVars(stack, vars, opts); err != nil {
@@ -383,16 +390,20 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 	envSlice := mapToSlice(envMap)
 
 	if opts.DryRun {
-		fmt.Println(composePath)
+		fmt.Println(composePaths[0])
 		debugf(opts.Debug, "%s: running docker compose config", stack)
-		return m.runComposeCmd(ctx, envSlice, composePath, "config")
+		return m.runComposeCmd(ctx, envSlice, composePaths, "config")
 	}
 
 	if opts.VarsOnly {
 		varsCmd := opts.VarsCommand
-		// If using 'compose' shorthand, prepend docker compose command
+		// If using 'compose' shorthand, prepend docker compose command with all -f flags
 		if opts.Compose {
-			varsCmd = append([]string{"docker", "compose", "-f", composePath}, opts.VarsCommand...)
+			args := []string{"docker", "compose"}
+			for _, p := range composePaths {
+				args = append(args, "-f", p)
+			}
+			varsCmd = append(args, opts.VarsCommand...)
 		}
 		debugf(opts.Debug, "%s: executing vars-only command %s", stack, strings.Join(varsCmd, " "))
 		cmd := exec.CommandContext(ctx, varsCmd[0], varsCmd[1:]...)
@@ -405,28 +416,28 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 
 	if opts.TearDown {
 		debugf(opts.Debug, "%s: tearing stack down", stack)
-		return m.runComposeCmd(ctx, envSlice, composePath, "down")
+		return m.runComposeCmd(ctx, envSlice, composePaths, "down")
 	}
 
-	running, err := m.composeOutput(ctx, envSlice, composePath, "ps", "-a", "--services", "--filter", "status=running")
+	running, err := m.composeOutput(ctx, envSlice, composePaths, "ps", "-a", "--services", "--filter", "status=running")
 	if err != nil {
 		return err
 	}
-	services, err := m.composeOutput(ctx, envSlice, composePath, "ps", "-a", "--services")
+	services, err := m.composeOutput(ctx, envSlice, composePaths, "ps", "-a", "--services")
 	if err != nil {
 		return err
 	}
 
 	if running != "" && running == services {
 		debugf(opts.Debug, "%s: restarting stack (all services running)", stack)
-		if err := m.runComposeCmd(ctx, envSlice, composePath, "down"); err != nil {
+		if err := m.runComposeCmd(ctx, envSlice, composePaths, "down"); err != nil {
 			return err
 		}
 	}
 
 	if opts.Update {
 		debugf(opts.Debug, "%s: checking for image updates", stack)
-		updated, err := m.pullImages(ctx, envSlice, composePath, stack, opts.Debug)
+		updated, err := m.pullImages(ctx, envSlice, composePaths, stack, opts.Debug)
 		if err != nil {
 			return err
 		}
@@ -438,11 +449,12 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 	}
 
 	debugf(opts.Debug, "%s: bringing stack up", stack)
-	return m.runComposeCmd(ctx, envSlice, composePath, "up", "-d")
+	return m.runComposeCmd(ctx, envSlice, composePaths, "up", "-d")
 }
 
-func (m *Manager) runComposeCmd(ctx context.Context, env []string, composePath string, args ...string) error {
-	fullArgs := append([]string{"compose", "-f", composePath}, args...)
+func (m *Manager) runComposeCmd(ctx context.Context, env []string, composePaths []string, args ...string) error {
+	fullArgs := composeFileArgs(composePaths)
+	fullArgs = append(fullArgs, args...)
 	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
 	cmd.Dir = m.cfg.RepoRoot
 	cmd.Env = env
@@ -451,8 +463,9 @@ func (m *Manager) runComposeCmd(ctx context.Context, env []string, composePath s
 	return cmd.Run()
 }
 
-func (m *Manager) composeOutput(ctx context.Context, env []string, composePath string, args ...string) (string, error) {
-	fullArgs := append([]string{"compose", "-f", composePath}, args...)
+func (m *Manager) composeOutput(ctx context.Context, env []string, composePaths []string, args ...string) (string, error) {
+	fullArgs := composeFileArgs(composePaths)
+	fullArgs = append(fullArgs, args...)
 	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
 	cmd.Dir = m.cfg.RepoRoot
 	cmd.Env = env
@@ -463,10 +476,19 @@ func (m *Manager) composeOutput(ctx context.Context, env []string, composePath s
 	return strings.TrimSpace(string(out)), nil
 }
 
+// composeFileArgs builds ["compose", "-f", path1, "-f", path2, ...] for docker CLI.
+func composeFileArgs(composePaths []string) []string {
+	args := []string{"compose"}
+	for _, p := range composePaths {
+		args = append(args, "-f", p)
+	}
+	return args
+}
+
 // pullImages checks for updates, pulls if needed, and returns true if any images were updated
-func (m *Manager) pullImages(ctx context.Context, env []string, composePath, stack string, debug bool) (bool, error) {
+func (m *Manager) pullImages(ctx context.Context, env []string, composePaths []string, stack string, debug bool) (bool, error) {
 	// First, check if updates are available without downloading
-	hasUpdates, err := m.checkImageUpdates(ctx, env, composePath, stack, debug)
+	hasUpdates, err := m.checkImageUpdates(ctx, env, composePaths, stack, debug)
 	if err != nil {
 		// If check fails, fall back to pull (conservative approach)
 		log.Printf("%s: image update check failed (%v), falling back to pull", stack, err)
@@ -477,7 +499,8 @@ func (m *Manager) pullImages(ctx context.Context, env []string, composePath, sta
 
 	// Updates available or check failed - proceed with pull
 	log.Printf("%s: pulling latest images", stack)
-	fullArgs := []string{"compose", "-f", composePath, "pull"}
+	fullArgs := composeFileArgs(composePaths)
+	fullArgs = append(fullArgs, "pull")
 	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
 	cmd.Dir = m.cfg.RepoRoot
 	cmd.Env = env
@@ -492,9 +515,10 @@ func (m *Manager) pullImages(ctx context.Context, env []string, composePath, sta
 }
 
 // checkImageUpdates checks if remote images have updates without downloading them
-func (m *Manager) checkImageUpdates(ctx context.Context, env []string, composePath, stack string, debug bool) (bool, error) {
+func (m *Manager) checkImageUpdates(ctx context.Context, env []string, composePaths []string, stack string, debug bool) (bool, error) {
 	// Get list of images from compose file
-	fullArgs := []string{"compose", "-f", composePath, "config", "--images"}
+	fullArgs := composeFileArgs(composePaths)
+	fullArgs = append(fullArgs, "config", "--images")
 	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
 	cmd.Dir = m.cfg.RepoRoot
 	cmd.Env = env
@@ -599,12 +623,25 @@ func (m *Manager) validateEnvVars(vars []string, env map[string]string) error {
 	return nil
 }
 
-func collectEnvVars(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+func collectAllEnvVars(paths []string) ([]string, error) {
+	seen := make(map[string]struct{})
+	var result []string
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, v := range uniqueEnvVars(string(data)) {
+			if _, ok := seen[v]; !ok {
+				seen[v] = struct{}{}
+				result = append(result, v)
+			}
+		}
 	}
-	return uniqueEnvVars(string(data)), nil
+	return result, nil
 }
 
 func addVarsToEnv(content, stack string, vars []string) (string, bool) {
@@ -752,7 +789,7 @@ func isAutoProvisionedVar(name string) bool {
 	if strings.HasPrefix(name, "STACKR_PROV_POOL_") {
 		return true
 	}
-	if name == "STACKR_PROV_DOMAIN" || name == "DCFP" {
+	if name == "STACKR_PROV_DOMAIN" || name == "DCFP" || strings.HasPrefix(name, "DCFP_") {
 		return true
 	}
 	return false
@@ -781,7 +818,7 @@ func (m *Manager) syncRemoteStack(ctx context.Context, stack string) error {
 	return remoteMgr.EnsureRemoteStack(ctx, stack, m.envValues)
 }
 
-func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
+func (m *Manager) buildStackEnv(ctx context.Context, stack string) (map[string]string, error) {
 	env := make(map[string]string)
 
 	// Auto-provisioned pool paths
@@ -809,7 +846,7 @@ func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
 	stackInfo, err := ResolveStackPath(m.cfg, stack)
 	if err == nil && stackInfo.Type == StackTypeRemote {
 		remoteMgr := remote.NewManager(m.cfg)
-		remoteEnv, err := remoteMgr.BuildMergedEnv(context.Background(), stack, env)
+		remoteEnv, err := remoteMgr.BuildMergedEnv(ctx, stack, env)
 		if err != nil {
 			log.Printf("warning: failed to load remote deployment config for %s: %v", stack, err)
 		} else {
@@ -817,7 +854,15 @@ func (m *Manager) buildStackEnv(stack string) (map[string]string, error) {
 		}
 	}
 
-	// Add stack-specific env vars (highest priority, overrides remote)
+	// Merge per-stack env overrides from stackr/config.yaml
+	stackDir := filepath.Join(m.cfg.StacksDir, stack)
+	if localCfg, err := config.LoadStackLocalConfig(stackDir); err == nil {
+		for k, v := range localCfg.Env {
+			env[k] = v
+		}
+	}
+
+	// Add stack-specific env vars from .stackr.yaml (highest priority, overrides all)
 	if stackEnv := m.cfg.Global.Env.Stacks[stack]; len(stackEnv) > 0 {
 		for k, v := range stackEnv {
 			env[k] = v
@@ -866,62 +911,6 @@ func mapToSlice(values map[string]string) []string {
 	return out
 }
 
-func copyDir(src, dest string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case d.IsDir():
-			return os.MkdirAll(target, info.Mode())
-		case d.Type()&os.ModeSymlink != 0:
-			ref, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(ref, target)
-		default:
-			return copyFile(path, target, info.Mode())
-		}
-	})
-}
-
-func copyFile(src, dest string, mode fs.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = in.Close()
-	}()
-
-	out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = out.Close()
-	}()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-	return nil
-}
 
 func debugf(enabled bool, format string, args ...interface{}) {
 	if !enabled {
@@ -948,7 +937,7 @@ func (m *Manager) copyBackupDir(stack, src, dest string, opts Options) error {
 		return nil
 	}
 
-	if err := copyDir(src, dest); err != nil {
+	if err := fsutil.CopyDir(src, dest); err != nil {
 		return fmt.Errorf("failed to backup %s -> %s: %w", src, dest, err)
 	}
 	fmt.Printf("  ✓ Backed up %s\n", src)

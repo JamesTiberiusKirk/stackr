@@ -128,7 +128,7 @@ func TestBuildStackEnv(t *testing.T) {
 	manager, err := NewManager(cfg)
 	require.NoError(t, err)
 
-	env, err := manager.buildStackEnv("demo")
+	env, err := manager.buildStackEnv(context.Background(), "demo")
 	require.NoError(t, err)
 
 	require.Equal(t, filepath.Join(root, ".ssd_pool", "demo"), env["STACKR_PROV_POOL_SSD"])
@@ -423,5 +423,5 @@ func TestRunStackMissingCompose(t *testing.T) {
 	err = manager.Run(context.Background(), opts)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stack orphan")
-	require.Contains(t, err.Error(), "has neither docker-compose.yml nor stackr-repo.yml")
+	require.Contains(t, err.Error(), "has neither docker-compose.yml")
 }
