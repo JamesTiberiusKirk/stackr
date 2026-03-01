@@ -127,10 +127,9 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 	opts.Stacks = []string{stack}
 
 	if err := manager.Run(ctx, opts); err != nil {
-		// Log the full error details
 		log.Printf("deployment failed for stack=%s: %v", stack, err)
-		log.Printf("deployment stdout:\n%s", stdout.String())
-		log.Printf("deployment stderr:\n%s", stderr.String())
+		log.Printf("deployment stdout: (%d bytes, redacted from logs)", stdout.Len())
+		log.Printf("deployment stderr: (%d bytes, redacted from logs)", stderr.Len())
 
 		if rollbackErr := envfile.Restore(r.cfg.EnvFile, snap); rollbackErr != nil {
 			log.Printf("failed to roll back %s after deploy error: %v", stackCfg.TagEnv, rollbackErr)
@@ -139,10 +138,8 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 		}
 
 		return nil, &CommandError{
-			Msg:    fmt.Sprintf("deployment failed for stack=%s", stack),
-			Code:   1,
-			Stdout: stdout.String(),
-			Stderr: stderr.String(),
+			Msg:  fmt.Sprintf("deployment failed for stack=%s", stack),
+			Code: 1,
 		}
 	}
 

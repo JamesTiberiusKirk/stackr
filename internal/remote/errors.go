@@ -69,7 +69,7 @@ func NewCheckoutError(stackName, ref, refType string, cause error) error {
 		"  3. The version in your .env file matches an actual release"
 
 	if refType == "tag" {
-		hint += fmt.Sprintf("\n\nTo list available tags, run:\n  git ls-remote --tags <repo-url>")
+		hint += "\n\nTo list available tags, run:\n  git ls-remote --tags <repo-url>"
 	}
 
 	return &StackError{

@@ -106,11 +106,11 @@ func ListRemoteStacks(cfg config.Config) ([]*RemoteStackStatus, error) {
 func FormatRemoteStackStatus(status *RemoteStackStatus, verbose bool) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("Stack: %s\n", status.Name))
-	b.WriteString(fmt.Sprintf("  Type: %s\n", status.Type))
+	fmt.Fprintf(&b, "Stack: %s\n", status.Name)
+	fmt.Fprintf(&b, "  Type: %s\n", status.Type)
 
 	if status.Error != "" {
-		b.WriteString(fmt.Sprintf("  Error: %s\n", status.Error))
+		fmt.Fprintf(&b, "  Error: %s\n", status.Error)
 		return b.String()
 	}
 
@@ -119,15 +119,15 @@ func FormatRemoteStackStatus(status *RemoteStackStatus, verbose bool) string {
 		return b.String()
 	}
 
-	b.WriteString(fmt.Sprintf("  Configured Ref: %s\n", status.ConfiguredRef))
-	b.WriteString(fmt.Sprintf("  Cloned: %v\n", status.IsCloned))
+	fmt.Fprintf(&b, "  Configured Ref: %s\n", status.ConfiguredRef)
+	fmt.Fprintf(&b, "  Cloned: %v\n", status.IsCloned)
 
 	if status.IsCloned {
-		b.WriteString(fmt.Sprintf("  Current Version: %s\n", status.CurrentVersion))
-		b.WriteString(fmt.Sprintf("  Dirty: %v\n", status.IsDirty))
+		fmt.Fprintf(&b, "  Current Version: %s\n", status.CurrentVersion)
+		fmt.Fprintf(&b, "  Dirty: %v\n", status.IsDirty)
 
 		if verbose {
-			b.WriteString(fmt.Sprintf("  Repository Path: %s\n", status.RepoPath))
+			fmt.Fprintf(&b, "  Repository Path: %s\n", status.RepoPath)
 		}
 
 		if status.IsDirty {

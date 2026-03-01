@@ -84,3 +84,25 @@ func TestParseDeployArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestCommandErrorDoesNotLeakOutput(t *testing.T) {
+	t.Run("empty stdout and stderr", func(t *testing.T) {
+		cmdErr := &CommandError{
+			Msg:  "deployment failed for stack=myapp",
+			Code: 1,
+		}
+
+		require.Equal(t, "", cmdErr.Stdout, "CommandError should not contain stdout")
+		require.Equal(t, "", cmdErr.Stderr, "CommandError should not contain stderr")
+		require.Equal(t, "deployment failed for stack=myapp", cmdErr.Error())
+		require.Equal(t, 1, cmdErr.Code)
+	})
+
+	t.Run("error interface works", func(t *testing.T) {
+		var err error = &CommandError{
+			Msg:  "test error",
+			Code: 42,
+		}
+		require.EqualError(t, err, "test error")
+	})
+}

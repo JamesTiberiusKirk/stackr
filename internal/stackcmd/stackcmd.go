@@ -28,21 +28,24 @@ var (
 )
 
 type Options struct {
-	Debug       bool
-	DryRun      bool
-	All         bool
-	TearDown    bool
-	Update      bool
-	Backup      bool
-	VarsOnly    bool
-	GetVars     bool
-	Compose     bool
-	Init        bool
-	RunCron     bool
-	Stacks      []string
-	VarsCommand []string
-	Tag         string
-	CronService string
+	Debug        bool
+	DryRun       bool
+	All          bool
+	TearDown     bool
+	Update       bool
+	Backup       bool
+	VarsOnly     bool
+	GetVars      bool
+	Compose      bool
+	Init         bool
+	RunCron      bool
+	Remote       bool
+	Stacks       []string
+	VarsCommand  []string
+	Tag          string
+	CronService  string
+	RemoteSubCmd string
+	RemoteStack  string
 }
 
 type Manager struct {

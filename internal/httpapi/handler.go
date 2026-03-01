@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -204,7 +205,7 @@ func (h *Handler) authorize(header string) bool {
 	}
 
 	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-	return token == h.cfg.Token
+	return subtle.ConstantTimeCompare([]byte(token), []byte(h.cfg.Token)) == 1
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
@@ -220,7 +221,25 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	}
 }
 
+// validateStackName rejects names that could escape the stacks directory via path traversal.
+func validateStackName(name string) error {
+	if name == "" {
+		return fmt.Errorf("stack name is empty")
+	}
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid stack name %q", name)
+	}
+	if filepath.Base(name) != name {
+		return fmt.Errorf("invalid stack name %q", name)
+	}
+	return nil
+}
+
 func (h *Handler) ensureStackExists(name string) error {
+	if err := validateStackName(name); err != nil {
+		return err
+	}
+
 	stackDir := filepath.Join(h.cfg.StacksDir, name)
 	info, err := os.Stat(stackDir)
 	if err != nil {

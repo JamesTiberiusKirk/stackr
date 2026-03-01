@@ -229,6 +229,99 @@ func TestLoadEnvFile(t *testing.T) {
 	}
 }
 
+func TestValidateStackName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		// Happy paths
+		{name: "simple name", input: "myapp", wantErr: false},
+		{name: "name with hyphen", input: "my-app", wantErr: false},
+		{name: "name with underscore", input: "my_app", wantErr: false},
+		{name: "name with dots", input: "my.app", wantErr: false},
+		{name: "numeric name", input: "123", wantErr: false},
+		// Unhappy paths — path traversal attempts
+		{name: "empty name", input: "", wantErr: true},
+		{name: "dot-dot traversal", input: "..", wantErr: true},
+		{name: "relative path up", input: "../etc", wantErr: true},
+		{name: "deep traversal", input: "../../etc/passwd", wantErr: true},
+		{name: "forward slash", input: "foo/bar", wantErr: true},
+		{name: "backslash", input: `foo\bar`, wantErr: true},
+		{name: "dot-dot in middle", input: "foo..bar", wantErr: true},
+		{name: "absolute path", input: "/etc/passwd", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateStackName(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestEnsureStackExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	stacksDir := filepath.Join(tmpDir, "stacks")
+	require.NoError(t, os.MkdirAll(stacksDir, 0o755))
+
+	// Create a valid stack
+	validStack := filepath.Join(stacksDir, "valid")
+	require.NoError(t, os.MkdirAll(validStack, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(validStack, "docker-compose.yml"), []byte("services: {}"), 0o644))
+
+	h := &Handler{cfg: config.Config{StacksDir: stacksDir}}
+
+	t.Run("valid stack succeeds", func(t *testing.T) {
+		require.NoError(t, h.ensureStackExists("valid"))
+	})
+
+	t.Run("nonexistent stack fails", func(t *testing.T) {
+		err := h.ensureStackExists("nope")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "does not exist")
+	})
+
+	t.Run("path traversal rejected before filesystem access", func(t *testing.T) {
+		err := h.ensureStackExists("../../etc")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid stack name")
+	})
+}
+
+func TestAuthorize(t *testing.T) {
+	h := &Handler{cfg: config.Config{Token: "correct-token"}}
+
+	tests := []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		// Happy paths
+		{name: "correct token", header: "Bearer correct-token", want: true},
+		// Unhappy paths
+		{name: "wrong token", header: "Bearer wrong-token", want: false},
+		{name: "empty header", header: "", want: false},
+		{name: "no bearer prefix", header: "correct-token", want: false},
+		{name: "basic auth prefix", header: "Basic correct-token", want: false},
+		{name: "bearer with extra spaces", header: "Bearer  correct-token", want: true},
+		{name: "empty token after bearer", header: "Bearer ", want: false},
+		{name: "partial token", header: "Bearer correct", want: false},
+		{name: "token with suffix", header: "Bearer correct-token-extra", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := h.authorize(tt.header)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestResolveEnvVars(t *testing.T) {
 	t.Helper()
 	h := &Handler{}
