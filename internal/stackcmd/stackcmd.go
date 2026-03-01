@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -100,16 +101,16 @@ func NewManagerWithWriters(cfg config.Config, stdout, stderr io.Writer) (*Manage
 	}
 
 	return &Manager{
-		cfg:       cfg,
-		envFile:   cfg.EnvFile,
-		envValues: envValues,
+		cfg:        cfg,
+		envFile:    cfg.EnvFile,
+		envValues:  envValues,
 		envContent: envContent,
-		targetDir: targetDir,
-		backupDir: backupDir,
-		baseEnv:   baseEnv,
-		poolBases: poolBases,
-		stdout:    stdout,
-		stderr:    stderr,
+		targetDir:  targetDir,
+		backupDir:  backupDir,
+		baseEnv:    baseEnv,
+		poolBases:  poolBases,
+		stdout:     stdout,
+		stderr:     stderr,
 	}, nil
 }
 
@@ -163,6 +164,11 @@ func (m *Manager) Run(ctx context.Context, opts Options) error {
 }
 
 func (m *Manager) runStack(ctx context.Context, stack string, opts Options) error {
+	if opts.Update && m.isStackOffline(stack) {
+		fmt.Printf("Stack %s is marked offline, skipping\n", stack)
+		return nil
+	}
+
 	stackDir := filepath.Join(m.targetDir, stack)
 	composePath := filepath.Join(stackDir, "docker-compose.yml")
 	if _, err := os.Stat(composePath); err != nil {
@@ -358,22 +364,22 @@ func (m *Manager) runCompose(ctx context.Context, stack, composePath string, var
 		return err
 	}
 
-	if usesVar(vars, "STACK_STORAGE_HDD") || usesVar(vars, "STORAGE_HDD") {
+	if slices.Contains(vars, "STACK_STORAGE_HDD") || slices.Contains(vars, "STORAGE_HDD") {
 		if err := ensureDir(envMap["STACK_STORAGE_HDD"]); err != nil {
 			return fmt.Errorf("failed to create HDD stack dir: %w", err)
 		}
 	}
-	if usesVar(vars, "STACK_STORAGE_SSD") || usesVar(vars, "STORAGE_SSD") {
+	if slices.Contains(vars, "STACK_STORAGE_SSD") || slices.Contains(vars, "STORAGE_SSD") {
 		if err := ensureDir(envMap["STACK_STORAGE_SSD"]); err != nil {
 			return fmt.Errorf("failed to create SSD stack dir: %w", err)
 		}
 	}
-	if usesVar(vars, "STACKR_PROV_POOL_SSD") {
+	if slices.Contains(vars, "STACKR_PROV_POOL_SSD") {
 		if err := ensureDir(envMap["STACKR_PROV_POOL_SSD"]); err != nil {
 			return fmt.Errorf("failed to ensure SSD pool dir: %w", err)
 		}
 	}
-	if usesVar(vars, "STACKR_PROV_POOL_HDD") {
+	if slices.Contains(vars, "STACKR_PROV_POOL_HDD") {
 		if err := ensureDir(envMap["STACKR_PROV_POOL_HDD"]); err != nil {
 			return fmt.Errorf("failed to ensure HDD pool dir: %w", err)
 		}
@@ -719,15 +725,6 @@ func writeEnvFile(path, content string) error {
 		mode = info.Mode()
 	}
 	return os.WriteFile(path, []byte(content), mode)
-}
-
-func usesVar(vars []string, target string) bool {
-	for _, v := range vars {
-		if v == target {
-			return true
-		}
-	}
-	return false
 }
 
 func ensureDir(path string) error {

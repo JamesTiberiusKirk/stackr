@@ -160,3 +160,196 @@ func testGlobalConfig() config.GlobalConfig {
 		},
 	}
 }
+
+func TestLoadAllStacks(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, root string)
+		want      []string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "HappyPath",
+			setup: func(t *testing.T, root string) {
+				for _, stack := range []string{"alpha", "bravo", "charlie"} {
+					makeDirs(t, root, "stacks/"+stack)
+					writeFile(t, filepath.Join(root, "stacks", stack, "docker-compose.yml"), "services: {}")
+				}
+			},
+			want: []string{"alpha", "bravo", "charlie"},
+		},
+		{
+			name: "EmptyDir",
+			setup: func(t *testing.T, root string) {
+				makeDirs(t, root, "stacks")
+			},
+			want: nil,
+		},
+		{
+			name: "MixedContent",
+			setup: func(t *testing.T, root string) {
+				// Valid stack
+				makeDirs(t, root, "stacks/valid")
+				writeFile(t, filepath.Join(root, "stacks", "valid", "docker-compose.yml"), "services: {}")
+				// Dir without compose file
+				makeDirs(t, root, "stacks/nocompose")
+				// Regular file in stacks dir
+				writeFile(t, filepath.Join(root, "stacks", "README.md"), "hello")
+			},
+			want: []string{"valid"},
+		},
+		{
+			name: "NonExistentDir",
+			setup: func(t *testing.T, root string) {
+				// Don't create stacks dir at all
+			},
+			wantErr:   true,
+			errSubstr: "failed to read stacks dir",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, ".env"), "")
+			tt.setup(t, root)
+
+			m := &Manager{targetDir: filepath.Join(root, "stacks")}
+			got, err := m.loadAllStacks()
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errSubstr != "" {
+					require.Contains(t, err.Error(), tt.errSubstr)
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRunValidationErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		opts      Options
+		setup     func(t *testing.T, root string)
+		errSubstr string
+	}{
+		{
+			name: "VarsOnlyWithoutCommand",
+			opts: Options{
+				VarsOnly: true,
+				Stacks:   []string{"demo"},
+			},
+			setup:     func(t *testing.T, root string) {},
+			errSubstr: "vars-only requires a command after --",
+		},
+		{
+			name: "ComposeWithoutArguments",
+			opts: Options{
+				Compose: true,
+				Stacks:  []string{"demo"},
+			},
+			setup:     func(t *testing.T, root string) {},
+			errSubstr: "compose requires arguments",
+		},
+		{
+			name: "AllWithEmptyStacksDir",
+			opts: Options{
+				All: true,
+			},
+			setup:     func(t *testing.T, root string) {},
+			errSubstr: "failed to read stacks dir",
+		},
+		{
+			name: "NoStacksSpecified",
+			opts: Options{
+				Stacks: []string{},
+			},
+			setup: func(t *testing.T, root string) {
+				makeDirs(t, root, "stacks")
+			},
+			errSubstr: "no stacks specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, ".env"), "")
+			tt.setup(t, root)
+
+			cfg := config.Config{
+				RepoRoot:  root,
+				EnvFile:   filepath.Join(root, ".env"),
+				StacksDir: filepath.Join(root, "stacks"),
+				Global: config.GlobalConfig{
+					Paths: config.PathsConfig{
+						Pools:  map[string]string{},
+						Custom: map[string]string{},
+					},
+					Env: config.EnvConfig{
+						Global: map[string]string{},
+						Stacks: map[string]map[string]string{},
+					},
+				},
+			}
+
+			manager, err := NewManagerWithWriters(cfg, os.Stdout, os.Stderr)
+			require.NoError(t, err)
+
+			err = manager.Run(context.Background(), tt.opts)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.errSubstr)
+		})
+	}
+}
+
+func TestRunBackupWithEmptyBackupDir(t *testing.T) {
+	root := t.TempDir()
+	makeDirs(t, root, "stacks/demo")
+	writeFile(t, filepath.Join(root, "stacks", "demo", "docker-compose.yml"), "services: {}")
+
+	m := &Manager{
+		targetDir: filepath.Join(root, "stacks"),
+		backupDir: "",
+	}
+
+	opts := Options{Backup: true, Stacks: []string{"demo"}}
+	err := m.Run(context.Background(), opts)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "BACKUP_DIR is not set")
+}
+
+func TestRunStackMissingCompose(t *testing.T) {
+	root := t.TempDir()
+	makeDirs(t, root, "stacks/orphan")
+	writeFile(t, filepath.Join(root, ".env"), "")
+
+	cfg := config.Config{
+		RepoRoot:  root,
+		EnvFile:   filepath.Join(root, ".env"),
+		StacksDir: filepath.Join(root, "stacks"),
+		Global: config.GlobalConfig{
+			Paths: config.PathsConfig{
+				Pools:  map[string]string{},
+				Custom: map[string]string{},
+			},
+			Env: config.EnvConfig{
+				Global: map[string]string{},
+				Stacks: map[string]map[string]string{},
+			},
+		},
+	}
+
+	manager, err := NewManagerWithWriters(cfg, os.Stdout, os.Stderr)
+	require.NoError(t, err)
+
+	opts := Options{Stacks: []string{"orphan"}}
+	err = manager.Run(context.Background(), opts)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stack orphan")
+	require.ErrorIs(t, err, os.ErrNotExist)
+}

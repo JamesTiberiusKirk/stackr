@@ -1,14 +1,15 @@
-.PHONY: help build test clean install lint docker-build
+.PHONY: help build test test-integration clean install lint docker-build
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build        - Build CLI and daemon binaries"
-	@echo "  test         - Run tests"
-	@echo "  clean        - Remove build artifacts"
-	@echo "  install      - Install binaries to GOPATH/bin"
-	@echo "  lint         - Run golangci-lint"
-	@echo "  docker-build - Build Docker image"
+	@echo "  build            - Build CLI and daemon binaries"
+	@echo "  test             - Run unit tests"
+	@echo "  test-integration - Run integration tests (requires Docker)"
+	@echo "  clean            - Remove build artifacts"
+	@echo "  install          - Install binaries to GOPATH/bin"
+	@echo "  lint             - Run golangci-lint"
+	@echo "  docker-build     - Build Docker image"
 
 # Build binaries
 build:
@@ -17,9 +18,13 @@ build:
 	@echo "Building stackrd daemon..."
 	go build -o bin/stackrd ./cmd/stackrd
 
-# Run tests
+# Run unit tests
 test:
 	go test -v ./...
+
+# Run integration tests (requires Docker)
+test-integration:
+	go test -v -tags=integration -timeout=10m ./...
 
 # Clean build artifacts
 clean:

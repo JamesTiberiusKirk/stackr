@@ -82,3 +82,95 @@ services:
 	require.Len(t, jobs, 1)
 	require.False(t, jobs[0].RunOnDeploy)
 }
+
+func TestSchedulerStartStopLifecycle(t *testing.T) {
+	t.Run("NoJobs", func(t *testing.T) {
+		s := &Scheduler{
+			cfg:  config.Config{},
+			jobs: nil,
+		}
+		require.NoError(t, s.Start())
+		s.Stop()
+	})
+
+	t.Run("DoubleStartIsIdempotent", func(t *testing.T) {
+		s := &Scheduler{
+			cfg:  config.Config{},
+			jobs: nil,
+		}
+		require.NoError(t, s.Start())
+		require.NoError(t, s.Start()) // second call should be a no-op
+		s.Stop()
+	})
+
+	t.Run("StopOnNilScheduler", func(t *testing.T) {
+		var s *Scheduler
+		// Should not panic
+		s.Stop()
+	})
+
+	t.Run("StartOnNilScheduler", func(t *testing.T) {
+		var s *Scheduler
+		require.NoError(t, s.Start())
+	})
+
+	t.Run("StopWithoutStart", func(t *testing.T) {
+		s := &Scheduler{
+			cfg:  config.Config{},
+			jobs: nil,
+		}
+		// Stop without Start should not panic
+		s.Stop()
+	})
+}
+
+func TestDiscoverJobsEdgeCases(t *testing.T) {
+	t.Run("EmptyStacksDir", func(t *testing.T) {
+		stacksDir := t.TempDir()
+		cfg := config.Config{StacksDir: stacksDir}
+		jobs, err := discoverJobs(cfg)
+		require.NoError(t, err)
+		require.Empty(t, jobs)
+	})
+
+	t.Run("StackDirWithoutComposeFile", func(t *testing.T) {
+		stacksDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(stacksDir, "nocompose"), 0o755))
+		cfg := config.Config{StacksDir: stacksDir}
+		jobs, err := discoverJobs(cfg)
+		require.NoError(t, err)
+		require.Empty(t, jobs)
+	})
+
+	t.Run("MalformedYAML", func(t *testing.T) {
+		stacksDir := t.TempDir()
+		stackDir := filepath.Join(stacksDir, "broken")
+		require.NoError(t, os.MkdirAll(stackDir, 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(stackDir, "docker-compose.yml"),
+			[]byte("{{invalid yaml content"),
+			0o644,
+		))
+		cfg := config.Config{StacksDir: stacksDir}
+		_, err := discoverJobs(cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to parse")
+	})
+
+	t.Run("NonExistentStacksDir", func(t *testing.T) {
+		cfg := config.Config{StacksDir: "/tmp/nonexistent-stackr-test-dir"}
+		_, err := discoverJobs(cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to read stacks dir")
+	})
+
+	t.Run("FilesInStacksDirSkipped", func(t *testing.T) {
+		stacksDir := t.TempDir()
+		// Create a regular file (not a dir) in stacks dir
+		require.NoError(t, os.WriteFile(filepath.Join(stacksDir, "not-a-stack.txt"), []byte("hello"), 0o644))
+		cfg := config.Config{StacksDir: stacksDir}
+		jobs, err := discoverJobs(cfg)
+		require.NoError(t, err)
+		require.Empty(t, jobs)
+	})
+}
