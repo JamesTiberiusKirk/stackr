@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -354,6 +355,14 @@ func (m *Manager) runCompose(ctx context.Context, stack string, composePaths []s
 		envMap[k] = v
 	}
 
+	// Set legacy STACK_STORAGE_HDD and STACK_STORAGE_SSD if pools exist
+	if hddPool, ok := m.poolBases["HDD"]; ok {
+		envMap["STACK_STORAGE_HDD"] = filepath.Join(hddPool, stack)
+	}
+	if ssdPool, ok := m.poolBases["SSD"]; ok {
+		envMap["STACK_STORAGE_SSD"] = filepath.Join(ssdPool, stack)
+	}
+
 	// Set DCFP to primary compose path, plus indexed variants for multi-file
 	envMap["DCFP"] = composePaths[0]
 	for i, p := range composePaths {
@@ -367,6 +376,18 @@ func (m *Manager) runCompose(ctx context.Context, stack string, composePaths []s
 
 	if err := m.validateEnvVars(vars, envMap); err != nil {
 		return err
+	}
+
+	// Ensure legacy storage directories exist
+	if slices.Contains(vars, "STACK_STORAGE_HDD") || slices.Contains(vars, "STORAGE_HDD") {
+		if err := ensureDir(envMap["STACK_STORAGE_HDD"]); err != nil {
+			return fmt.Errorf("failed to create HDD stack dir: %w", err)
+		}
+	}
+	if slices.Contains(vars, "STACK_STORAGE_SSD") || slices.Contains(vars, "STORAGE_SSD") {
+		if err := ensureDir(envMap["STACK_STORAGE_SSD"]); err != nil {
+			return fmt.Errorf("failed to create SSD stack dir: %w", err)
+		}
 	}
 
 	// Ensure pool directories exist for any STACKR_PROV_POOL_* variables used
@@ -390,6 +411,12 @@ func (m *Manager) runCompose(ctx context.Context, stack string, composePaths []s
 	envSlice := mapToSlice(envMap)
 
 	if opts.DryRun {
+		if hdd, ok := envMap["STACK_STORAGE_HDD"]; ok {
+			fmt.Println("STACK_STORAGE_HDD:", hdd)
+		}
+		if ssd, ok := envMap["STACK_STORAGE_SSD"]; ok {
+			fmt.Println("STACK_STORAGE_SSD:", ssd)
+		}
 		fmt.Println(composePaths[0])
 		debugf(opts.Debug, "%s: running docker compose config", stack)
 		return m.runComposeCmd(ctx, envSlice, composePaths, "config")
@@ -783,8 +810,21 @@ func (m *Manager) isStackOffline(stack string) bool {
 }
 
 
+func isStorageVar(name string) bool {
+	switch name {
+	case "STACK_STORAGE_HDD", "STACK_STORAGE_SSD", "STORAGE_HDD", "STORAGE_SSD":
+		return true
+	default:
+		return false
+	}
+}
+
 // isAutoProvisionedVar returns true if the variable is automatically provisioned by stackr
 func isAutoProvisionedVar(name string) bool {
+	// Legacy storage variables
+	if isStorageVar(name) {
+		return true
+	}
 	// Auto-provisioned pool variables
 	if strings.HasPrefix(name, "STACKR_PROV_POOL_") {
 		return true
