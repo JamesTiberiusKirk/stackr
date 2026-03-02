@@ -2,13 +2,13 @@ package removal
 
 import (
 	"fmt"
-	"io"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/jamestiberiuskirk/stackr/internal/fsutil"
 )
 
 // ArchiveConfig holds configuration for archiving
@@ -75,64 +75,5 @@ func copyDirIfExists(src, dest string) error {
 		return nil
 	}
 
-	return copyDir(src, dest)
-}
-
-// copyDir recursively copies a directory
-func copyDir(src, dest string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case d.IsDir():
-			return os.MkdirAll(target, info.Mode())
-		case d.Type()&os.ModeSymlink != 0:
-			ref, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(ref, target)
-		default:
-			return copyFile(path, target, info.Mode())
-		}
-	})
-}
-
-// copyFile copies a single file
-func copyFile(src, dest string, mode fs.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = in.Close()
-	}()
-
-	out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = out.Close()
-	}()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-	return nil
+	return fsutil.CopyDir(src, dest)
 }

@@ -8,16 +8,32 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/jamestiberiuskirk/stackr/internal/config"
 )
 
 // Cleanup removes all Docker resources for a stack
 // Uses docker compose down with volume removal
 func Cleanup(ctx context.Context, stack string, stacksDir string) error {
-	composePath := filepath.Join(stacksDir, stack, "docker-compose.yml")
+	stackDir := filepath.Join(stacksDir, stack)
+	localCfg, err := config.LoadStackLocalConfig(stackDir)
+	if err != nil {
+		log.Printf("failed to load stack config for %s, falling back to default: %v", stack, err)
+		localCfg = &config.StackLocalConfig{ComposeFiles: []string{"docker-compose.yml"}}
+	}
 
-	// Check if compose file still exists
+	// Build compose paths relative to stack dir
+	var composePaths []string
+	for _, f := range localCfg.ComposeFiles {
+		composePaths = append(composePaths, filepath.Join(stackDir, f))
+	}
+	if len(composePaths) == 0 {
+		composePaths = []string{filepath.Join(stackDir, "docker-compose.yml")}
+	}
+
+	// Check if primary compose file still exists
 	// If not, we need to use docker CLI directly to clean by project label
-	if _, err := os.Stat(composePath); err != nil {
+	if _, err := os.Stat(composePaths[0]); err != nil {
 		if os.IsNotExist(err) {
 			log.Printf("compose file gone for %s, cleaning by project label", stack)
 			return cleanupByProjectLabel(ctx, stack)
@@ -27,17 +43,18 @@ func Cleanup(ctx context.Context, stack string, stacksDir string) error {
 
 	// Compose file exists, use docker compose down
 	log.Printf("running docker compose down for stack %s", stack)
-	return dockerComposeDown(ctx, composePath)
+	return dockerComposeDown(ctx, composePaths)
 }
 
 // dockerComposeDown runs docker compose down with volume removal
-func dockerComposeDown(ctx context.Context, composePath string) error {
-	cmd := exec.CommandContext(ctx, "docker", "compose",
-		"-f", composePath,
-		"down",
-		"--volumes",        // Remove volumes
-		"--remove-orphans", // Clean orphaned containers
-	)
+func dockerComposeDown(ctx context.Context, composePaths []string) error {
+	args := []string{"compose"}
+	for _, p := range composePaths {
+		args = append(args, "-f", p)
+	}
+	args = append(args, "down", "--volumes", "--remove-orphans")
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -143,9 +160,7 @@ func removeNetworks(ctx context.Context, stack string) error {
 	args := append([]string{"network", "rm"}, networkIDs...)
 	rmCmd := exec.CommandContext(ctx, "docker", args...)
 	if output, err := rmCmd.CombinedOutput(); err != nil {
-		// Networks may fail to remove if still in use - log but don't fail
-		log.Printf("warning: failed to remove some networks for stack %s: %s", stack, string(output))
-		return nil
+		return fmt.Errorf("failed to remove networks for stack %s: %w\nOutput: %s", stack, err, string(output))
 	}
 
 	log.Printf("removed %d networks for stack %s", len(networkIDs), stack)

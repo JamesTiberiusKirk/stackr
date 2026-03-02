@@ -25,7 +25,7 @@ services:
   web:
     image: nginx:${MY_VAR}
     volumes:
-      - ${STACK_STORAGE_HDD}:/data
+      - ${STACKR_PROV_POOL_HDD}:/data
 `)
 
 	cfg := config.Config{
@@ -128,7 +128,7 @@ func TestBuildStackEnv(t *testing.T) {
 	manager, err := NewManager(cfg)
 	require.NoError(t, err)
 
-	env, err := manager.buildStackEnv("demo")
+	env, err := manager.buildStackEnv(context.Background(), "demo")
 	require.NoError(t, err)
 
 	require.Equal(t, filepath.Join(root, ".ssd_pool", "demo"), env["STACKR_PROV_POOL_SSD"])
@@ -136,6 +136,71 @@ func TestBuildStackEnv(t *testing.T) {
 	require.Equal(t, "demo.localhost", env["STACKR_PROV_DOMAIN"])
 	require.Equal(t, "test_value", env["TEST_VAR"]) // Global env var from config
 	require.Equal(t, "demo-value", env["STACK_SPECIFIC"])
+}
+
+func TestPoolValidation(t *testing.T) {
+	t.Run("configured pool creates directory", func(t *testing.T) {
+		root := t.TempDir()
+		makeDirs(t, root, "stacks/demo")
+		writeFile(t, filepath.Join(root, ".env"), "")
+		writeFile(t, filepath.Join(root, "stacks/demo/docker-compose.yml"), `
+services:
+  app:
+    image: nginx
+    volumes:
+      - ${STACKR_PROV_POOL_SSD}:/data
+`)
+
+		cfg := config.Config{
+			RepoRoot:  root,
+			EnvFile:   filepath.Join(root, ".env"),
+			StacksDir: filepath.Join(root, "stacks"),
+			Global:    testGlobalConfig(),
+		}
+
+		stubDocker(t)
+
+		manager, err := NewManager(cfg)
+		require.NoError(t, err)
+
+		opts := Options{Stacks: []string{"demo"}, Update: true}
+		require.NoError(t, manager.Run(context.Background(), opts))
+
+		// Verify pool directory was created
+		poolPath := filepath.Join(root, ".ssd_pool", "demo")
+		require.DirExists(t, poolPath)
+	})
+
+	t.Run("unconfigured pool returns error", func(t *testing.T) {
+		root := t.TempDir()
+		makeDirs(t, root, "stacks/demo")
+		writeFile(t, filepath.Join(root, ".env"), "")
+		writeFile(t, filepath.Join(root, "stacks/demo/docker-compose.yml"), `
+services:
+  app:
+    image: nginx
+    volumes:
+      - ${STACKR_PROV_POOL_NVME}:/data
+`)
+
+		cfg := config.Config{
+			RepoRoot:  root,
+			EnvFile:   filepath.Join(root, ".env"),
+			StacksDir: filepath.Join(root, "stacks"),
+			Global:    testGlobalConfig(),
+		}
+
+		stubDocker(t)
+
+		manager, err := NewManager(cfg)
+		require.NoError(t, err)
+
+		opts := Options{Stacks: []string{"demo"}, Update: true}
+		err = manager.Run(context.Background(), opts)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "STACKR_PROV_POOL_NVME")
+		require.Contains(t, err.Error(), "not configured in paths.pools")
+	})
 }
 
 func testGlobalConfig() config.GlobalConfig {
@@ -147,6 +212,7 @@ func testGlobalConfig() config.GlobalConfig {
 				"SSD": ".ssd_pool",
 				"HDD": ".hdd_pool",
 			},
+			Custom: map[string]string{},
 		},
 		Env: config.EnvConfig{
 			Global: map[string]string{
@@ -184,7 +250,7 @@ func TestLoadAllStacks(t *testing.T) {
 			setup: func(t *testing.T, root string) {
 				makeDirs(t, root, "stacks")
 			},
-			want: nil,
+			want: []string{},
 		},
 		{
 			name: "MixedContent",
@@ -205,7 +271,7 @@ func TestLoadAllStacks(t *testing.T) {
 				// Don't create stacks dir at all
 			},
 			wantErr:   true,
-			errSubstr: "failed to read stacks dir",
+			errSubstr: "failed to read stacks directory",
 		},
 	}
 
@@ -215,7 +281,13 @@ func TestLoadAllStacks(t *testing.T) {
 			writeFile(t, filepath.Join(root, ".env"), "")
 			tt.setup(t, root)
 
-			m := &Manager{targetDir: filepath.Join(root, "stacks")}
+			m := &Manager{
+				targetDir: filepath.Join(root, "stacks"),
+				cfg: config.Config{
+					RepoRoot:  root,
+					StacksDir: filepath.Join(root, "stacks"),
+				},
+			}
 			got, err := m.loadAllStacks()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -261,7 +333,7 @@ func TestRunValidationErrors(t *testing.T) {
 				All: true,
 			},
 			setup:     func(t *testing.T, root string) {},
-			errSubstr: "failed to read stacks dir",
+			errSubstr: "failed to read stacks directory",
 		},
 		{
 			name: "NoStacksSpecified",
@@ -351,5 +423,5 @@ func TestRunStackMissingCompose(t *testing.T) {
 	err = manager.Run(context.Background(), opts)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stack orphan")
-	require.ErrorIs(t, err, os.ErrNotExist)
+	require.Contains(t, err.Error(), "has neither docker-compose.yml")
 }

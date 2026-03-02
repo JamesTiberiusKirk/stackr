@@ -9,8 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/envfile"
+	"github.com/jamestiberiuskirk/stackr/internal/remote"
 	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
 )
 
@@ -83,6 +86,32 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 
 	log.Printf("updated %s to %s (previous: %s)", stackCfg.TagEnv, tag, previous)
 
+	// Check if remote stack and sync before deployment
+	stackInfo, err := stackcmd.ResolveStackPath(r.cfg, stack)
+	if err != nil {
+		if rollbackErr := envfile.Restore(r.cfg.EnvFile, snap); rollbackErr != nil {
+			log.Printf("failed to roll back %s after stack resolution error: %v", stackCfg.TagEnv, rollbackErr)
+		}
+		return nil, fmt.Errorf("failed to resolve stack: %w", err)
+	}
+
+	if stackInfo.Type == stackcmd.StackTypeRemote {
+		// Read current .env for variable resolution
+		envVals, _, err := readEnvFile(r.cfg.EnvFile)
+		if err != nil {
+			if rollbackErr := envfile.Restore(r.cfg.EnvFile, snap); rollbackErr != nil {
+				log.Printf("failed to roll back %s after env read error: %v", stackCfg.TagEnv, rollbackErr)
+			}
+			return nil, fmt.Errorf("failed to read env file: %w", err)
+		}
+
+		remoteMgr := remote.NewManager(r.cfg)
+		if err := remoteMgr.EnsureRemoteStack(ctx, stack, envVals); err != nil {
+			// Use cached version on git failure (graceful degradation)
+			log.Printf("warning: git sync failed for %s, using cached version: %v", stack, err)
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, CommandTimeout)
 	defer cancel()
 
@@ -99,11 +128,21 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 	opts := parseDeployArgs(stackCfg.Args)
 	opts.Stacks = []string{stack}
 
-	if err := manager.Run(ctx, opts); err != nil {
-		// Log the full error details
-		log.Printf("deployment failed for stack=%s: %v", stack, err)
-		log.Printf("deployment stdout:\n%s", stdout.String())
-		log.Printf("deployment stderr:\n%s", stderr.String())
+	// For remote stacks, wrap deploy in retry logic to handle the case where
+	// a git tag exists but the Docker image hasn't been published yet.
+	runDeploy := func() error { return manager.Run(ctx, opts) }
+	var runErr error
+	if stackInfo.Type == stackcmd.StackTypeRemote {
+		retryCfg := remote.DefaultRetryConfig()
+		runErr = remote.RetryImagePull(ctx, runDeploy, retryCfg)
+	} else {
+		runErr = runDeploy()
+	}
+
+	if runErr != nil {
+		log.Printf("deployment failed for stack=%s: %v", stack, runErr)
+		log.Printf("deployment stdout: (%d bytes, redacted from logs)", stdout.Len())
+		log.Printf("deployment stderr: (%d bytes, redacted from logs)", stderr.Len())
 
 		if rollbackErr := envfile.Restore(r.cfg.EnvFile, snap); rollbackErr != nil {
 			log.Printf("failed to roll back %s after deploy error: %v", stackCfg.TagEnv, rollbackErr)
@@ -112,10 +151,8 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 		}
 
 		return nil, &CommandError{
-			Msg:    fmt.Sprintf("deployment failed for stack=%s", stack),
-			Code:   1,
-			Stdout: stdout.String(),
-			Stderr: stderr.String(),
+			Msg:  fmt.Sprintf("deployment failed for stack=%s", stack),
+			Code: 1,
 		}
 	}
 
@@ -127,4 +164,22 @@ func (r *Runner) Deploy(ctx context.Context, stack string, stackCfg config.Stack
 		Tag:    tag,
 		Stdout: strings.TrimSpace(stdout.String()),
 	}, nil
+}
+
+// readEnvFile reads and parses the env file using godotenv for consistent
+// quote stripping and escaping behavior (matches stackcmd.readEnvFile).
+func readEnvFile(path string) (map[string]string, string, error) {
+	content, err := envfile.SnapshotFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+
+	data := string(content.Data)
+
+	envVals, err := godotenv.Unmarshal(data)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse env file: %w", err)
+	}
+
+	return envVals, data, nil
 }

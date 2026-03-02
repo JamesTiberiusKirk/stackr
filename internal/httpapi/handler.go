@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jamestiberiuskirk/stackr/internal/compose"
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/runner"
 	"gopkg.in/yaml.v3"
@@ -33,41 +35,7 @@ type composeFile struct {
 }
 
 type composeService struct {
-	Labels labelMap `yaml:"labels"`
-}
-
-type labelMap map[string]string
-
-func (l *labelMap) UnmarshalYAML(value *yaml.Node) error {
-	result := make(map[string]string)
-	if value == nil || value.Kind == 0 {
-		*l = result
-		return nil
-	}
-
-	switch value.Kind {
-	case yaml.SequenceNode:
-		for _, item := range value.Content {
-			parts := strings.SplitN(item.Value, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	case yaml.MappingNode:
-		for i := 0; i < len(value.Content); i += 2 {
-			key := strings.TrimSpace(value.Content[i].Value)
-			if i+1 >= len(value.Content) {
-				continue
-			}
-			result[key] = strings.TrimSpace(value.Content[i+1].Value)
-		}
-	default:
-		return fmt.Errorf("unsupported labels format: %s", value.ShortTag())
-	}
-
-	*l = result
-	return nil
+	Labels compose.LabelMap `yaml:"labels"`
 }
 
 type deployRequest struct {
@@ -204,7 +172,7 @@ func (h *Handler) authorize(header string) bool {
 	}
 
 	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-	return token == h.cfg.Token
+	return subtle.ConstantTimeCompare([]byte(token), []byte(h.cfg.Token)) == 1
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
@@ -220,7 +188,25 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	}
 }
 
+// validateStackName rejects names that could escape the stacks directory via path traversal.
+func validateStackName(name string) error {
+	if name == "" {
+		return fmt.Errorf("stack name is empty")
+	}
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid stack name %q", name)
+	}
+	if filepath.Base(name) != name {
+		return fmt.Errorf("invalid stack name %q", name)
+	}
+	return nil
+}
+
 func (h *Handler) ensureStackExists(name string) error {
+	if err := validateStackName(name); err != nil {
+		return err
+	}
+
 	stackDir := filepath.Join(h.cfg.StacksDir, name)
 	info, err := os.Stat(stackDir)
 	if err != nil {
@@ -233,9 +219,19 @@ func (h *Handler) ensureStackExists(name string) error {
 		return fmt.Errorf("%s is not a stack directory", stackDir)
 	}
 
+	// Accept any recognized stack marker:
+	// - docker-compose.yml (local)
+	// - stackr/config.yaml (new unified config)
+	// - stackr-repo.yml (legacy remote)
 	composePath := filepath.Join(stackDir, "docker-compose.yml")
+	newCfgPath := filepath.Join(stackDir, "stackr", "config.yaml")
+	legacyDefPath := filepath.Join(stackDir, "stackr-repo.yml")
 	if _, err := os.Stat(composePath); err != nil {
-		return fmt.Errorf("stack %q is missing docker-compose.yml", name)
+		if _, err := os.Stat(newCfgPath); err != nil {
+			if _, err := os.Stat(legacyDefPath); err != nil {
+				return fmt.Errorf("stack %q has no docker-compose.yml, stackr/config.yaml, or stackr-repo.yml", name)
+			}
+		}
 	}
 	return nil
 }
@@ -244,7 +240,31 @@ func (h *Handler) ensureStackExists(name string) error {
 // Returns false if ANY service has stackr.deploy.auto=false (or env var resolving to false)
 // Defaults to true if label is not present
 func (h *Handler) isAutoDeployEnabled(stackName string) (bool, error) {
-	composePath := filepath.Join(h.cfg.StacksDir, stackName, "docker-compose.yml")
+	stackDir := filepath.Join(h.cfg.StacksDir, stackName)
+	localCfg, err := config.LoadStackLocalConfig(stackDir)
+	if err != nil {
+		return false, fmt.Errorf("failed to load stack config: %w", err)
+	}
+	if len(localCfg.ComposeFiles) == 0 {
+		return false, fmt.Errorf("no compose files configured for stack %q", stackName)
+	}
+
+	// Determine the primary compose file path.
+	// For remote stacks the compose file lives in the cloned repo dir.
+	var composePath string
+	if localCfg.IsRemote() {
+		remoteRepoDir := h.cfg.Global.RemoteStacksDir
+		if !filepath.IsAbs(remoteRepoDir) {
+			remoteRepoDir = filepath.Join(h.cfg.RepoRoot, remoteRepoDir)
+		}
+		baseDir := filepath.Join(remoteRepoDir, stackName)
+		if localCfg.RemoteRepo.Path != "" && localCfg.RemoteRepo.Path != "." {
+			baseDir = filepath.Join(baseDir, localCfg.RemoteRepo.Path)
+		}
+		composePath = filepath.Join(baseDir, localCfg.ComposeFiles[0])
+	} else {
+		composePath = filepath.Join(stackDir, localCfg.ComposeFiles[0])
+	}
 	content, err := os.ReadFile(composePath)
 	if err != nil {
 		return false, fmt.Errorf("failed to read compose file: %w", err)

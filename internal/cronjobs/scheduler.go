@@ -18,6 +18,7 @@ import (
 	cron "github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
 
+	"github.com/jamestiberiuskirk/stackr/internal/compose"
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 	"github.com/jamestiberiuskirk/stackr/internal/runner"
 	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
@@ -36,12 +37,12 @@ type Scheduler struct {
 }
 
 type cronJob struct {
-	Stack       string
-	Service     string
-	Schedule    string
-	Profile     string
-	RunOnDeploy bool
-	ComposeFile string
+	Stack        string
+	Service      string
+	Schedule     string
+	Profile      string
+	RunOnDeploy  bool
+	ComposeFiles []string
 }
 
 type composeFile struct {
@@ -49,42 +50,8 @@ type composeFile struct {
 }
 
 type composeService struct {
-	Labels   labelMap `yaml:"labels"`
-	Profiles []string `yaml:"profiles"`
-}
-
-type labelMap map[string]string
-
-func (l *labelMap) UnmarshalYAML(value *yaml.Node) error {
-	result := make(map[string]string)
-	if value == nil || value.Kind == 0 {
-		*l = result
-		return nil
-	}
-
-	switch value.Kind {
-	case yaml.SequenceNode:
-		for _, item := range value.Content {
-			parts := strings.SplitN(item.Value, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	case yaml.MappingNode:
-		for i := 0; i < len(value.Content); i += 2 {
-			key := strings.TrimSpace(value.Content[i].Value)
-			if i+1 >= len(value.Content) {
-				continue
-			}
-			result[key] = strings.TrimSpace(value.Content[i+1].Value)
-		}
-	default:
-		return fmt.Errorf("unsupported labels format: %s", value.ShortTag())
-	}
-
-	*l = result
-	return nil
+	Labels   compose.LabelMap `yaml:"labels"`
+	Profiles []string         `yaml:"profiles"`
 }
 
 func New(cfg config.Config) (*Scheduler, error) {
@@ -250,19 +217,18 @@ func ExecuteJobManually(cfg config.Config, stack, service string, customCmd []st
 }
 
 func discoverJobs(cfg config.Config) ([]cronJob, error) {
-	entries, err := os.ReadDir(cfg.StacksDir)
+	stacks, err := stackcmd.DiscoverStacks(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read stacks dir %s: %w", cfg.StacksDir, err)
+		return nil, fmt.Errorf("failed to discover stacks: %w", err)
 	}
 
 	var jobs []cronJob
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	for _, stack := range stacks {
+		composePath := stack.PrimaryComposePath()
+		if composePath == "" {
 			continue
 		}
 
-		stackName := entry.Name()
-		composePath := filepath.Join(cfg.StacksDir, stackName, "docker-compose.yml")
 		content, err := os.ReadFile(composePath)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -291,21 +257,21 @@ func discoverJobs(cfg config.Config) ([]cronJob, error) {
 
 			runOnDeploy := false
 			if raw := strings.TrimSpace(service.Labels[runOnDeployLabel]); raw != "" {
-				parsed, err := strconv.ParseBool(raw)
-				if err != nil {
-					log.Printf("invalid %s value for stack=%s service=%s: %q", runOnDeployLabel, stackName, serviceName, raw)
+				parsedBool, parseErr := strconv.ParseBool(raw)
+				if parseErr != nil {
+					log.Printf("invalid %s value for stack=%s service=%s: %q", runOnDeployLabel, stack.Name, serviceName, raw)
 				} else {
-					runOnDeploy = parsed
+					runOnDeploy = parsedBool
 				}
 			}
 
 			jobs = append(jobs, cronJob{
-				Stack:       stackName,
-				Service:     serviceName,
-				Schedule:    schedule,
-				Profile:     profile,
-				RunOnDeploy: runOnDeploy,
-				ComposeFile: composePath,
+				Stack:        stack.Name,
+				Service:      serviceName,
+				Schedule:     schedule,
+				Profile:      profile,
+				RunOnDeploy:  runOnDeploy,
+				ComposeFiles: stack.ComposePaths,
 			})
 		}
 	}
@@ -393,7 +359,10 @@ func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 
 	// Generate deterministic container name and REMOVE --rm flag
 	containerName := GenerateContainerName(job.Stack, job.Service)
-	composeArgs := []string{"docker", "compose", "--file", job.ComposeFile}
+	composeArgs := []string{"docker", "compose"}
+	for _, f := range job.ComposeFiles {
+		composeArgs = append(composeArgs, "--file", f)
+	}
 	if profile := strings.TrimSpace(job.Profile); profile != "" {
 		composeArgs = append(composeArgs, "--profile", profile)
 	}
@@ -430,7 +399,10 @@ func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 // ensureImage runs docker compose pull to ensure image is available
 // Logs output to build log file
 func (s *Scheduler) ensureImage(ctx context.Context, job cronJob, logWriters *CronLogWriters) error {
-	pullArgs := []string{"docker", "compose", "--file", job.ComposeFile}
+	pullArgs := []string{"docker", "compose"}
+	for _, f := range job.ComposeFiles {
+		pullArgs = append(pullArgs, "--file", f)
+	}
 	if profile := strings.TrimSpace(job.Profile); profile != "" {
 		pullArgs = append(pullArgs, "--profile", profile)
 	}

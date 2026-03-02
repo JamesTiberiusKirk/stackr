@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/jamestiberiuskirk/stackr/internal/httpapi"
 	"github.com/jamestiberiuskirk/stackr/internal/removal"
 	"github.com/jamestiberiuskirk/stackr/internal/runner"
+	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
 	"github.com/jamestiberiuskirk/stackr/internal/watch"
 )
 
@@ -69,12 +69,14 @@ func main() {
 	})
 
 	// Get initial stack list and initialize tracker
-	initialStacks, err := loadStackNames(cfg.StacksDir)
+	initialStacks, err := loadStackNames(cfg)
 	if err != nil {
 		log.Printf("warning: failed to load initial stack list: %v", err)
 	} else {
 		removalHandler.Initialize(initialStacks)
 	}
+
+	const watchCallbackTimeout = 2 * time.Minute
 
 	var watchCancel context.CancelFunc
 	{
@@ -83,19 +85,33 @@ func main() {
 		if err := watch.WatchStacks(watchCtx, cfg.StacksDir, func(path string) {
 			log.Printf("stack change detected (%s), checking for changes", path)
 
-			// Load current stack state
-			currentStacks, err := loadStackNames(cfg.StacksDir)
-			if err != nil {
-				log.Printf("failed to load current stacks: %v", err)
-				return
-			}
+			cbCtx, cbCancel := context.WithTimeout(watchCtx, watchCallbackTimeout)
+			defer cbCancel()
 
-			// Check for removals BEFORE reloading cron (important for cleanup ordering)
-			removalHandler.CheckForRemovals(currentStacks)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
 
-			// Then reload cron jobs
-			if err := scheduler.Reload(); err != nil {
-				log.Printf("failed to reload cron scheduler: %v", err)
+				// Load current stack state
+				currentStacks, err := loadStackNames(cfg)
+				if err != nil {
+					log.Printf("failed to load current stacks: %v", err)
+					return
+				}
+
+				// Check for removals BEFORE reloading cron (important for cleanup ordering)
+				removalHandler.CheckForRemovals(currentStacks)
+
+				// Then reload cron jobs
+				if err := scheduler.Reload(); err != nil {
+					log.Printf("failed to reload cron scheduler: %v", err)
+				}
+			}()
+
+			select {
+			case <-done:
+			case <-cbCtx.Done():
+				log.Printf("warning: watcher callback timed out after %v", watchCallbackTimeout)
 			}
 		}); err != nil {
 			log.Printf("stack watcher disabled: %v", err)
@@ -151,21 +167,15 @@ func main() {
 }
 
 // loadStackNames scans the stacks directory and returns the names of all valid stacks
-func loadStackNames(stacksDir string) ([]string, error) {
-	entries, err := os.ReadDir(stacksDir)
+func loadStackNames(cfg config.Config) ([]string, error) {
+	stacks, err := stackcmd.DiscoverStacks(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	var stacks []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		composePath := filepath.Join(stacksDir, entry.Name(), "docker-compose.yml")
-		if _, err := os.Stat(composePath); err == nil {
-			stacks = append(stacks, entry.Name())
-		}
+	names := make([]string, len(stacks))
+	for i, s := range stacks {
+		names[i] = s.Name
 	}
-	return stacks, nil
+	return names, nil
 }
