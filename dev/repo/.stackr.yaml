@@ -1,0 +1,15 @@
+stacks_dir: stacks
+
+cron:
+  profile: cron
+  enable_file_logs: true
+  logs_dir: logs/cron
+  docker_container_retention: 3
+
+http:
+  base_domain: localhost
+
+paths:
+  backup_dir: ./backups
+  pools:
+    SSD: .vols_ssd

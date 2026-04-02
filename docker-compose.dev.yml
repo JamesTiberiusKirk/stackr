@@ -1,0 +1,17 @@
+name: stackr-dev
+
+services:
+  stackrd:
+    build: .
+    container_name: stackrd-dev
+    environment:
+      STACKR_HOST: 0.0.0.0
+      STACKR_PORT: 9000
+      STACKR_TOKEN: dev-token-123
+      STACKR_REPO_ROOT: /srv/stackr_repo
+      STACKR_HOST_REPO_ROOT: ${PWD}/dev/repo
+    volumes:
+      - ./dev/repo:/srv/stackr_repo
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "9090:9000"

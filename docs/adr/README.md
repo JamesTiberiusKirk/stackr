@@ -20,6 +20,9 @@ Each ADR follows this structure:
 ## Index
 
 - [ADR-0001](0001-remote-stack-deployments.md) - Remote Stack Deployments from Git Repositories
+- [ADR-0002](0002-runtime-state-auth-api.md) - Runtime State, Auth System, and API Expansion
+- [ADR-0003](0003-multi-environment-stacks.md) - Multi-Environment Stacks
+- [ADR-0004](0004-multi-node.md) - Multi-Node Deployment
 
 ## Creating a new ADR
 
