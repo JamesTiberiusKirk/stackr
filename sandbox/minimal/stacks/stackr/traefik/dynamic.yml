@@ -1,0 +1,20 @@
+# Traefik file provider config for the local sandbox. The stackrd router below
+# points at host.docker.internal:8080 so traefik routes to the daemon you're
+# running natively via `hamr dev`. When you swap to the in-container daemon
+# (uncomment the stackrd service in docker-compose.yml), delete this whole
+# block — the docker provider will pick the route up from the container's
+# traefik.* labels instead.
+
+http:
+  routers:
+    stackrd:
+      rule: "Host(`stackr.localhost`)"
+      entryPoints:
+        - web
+      service: stackrd
+
+  services:
+    stackrd:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8080"

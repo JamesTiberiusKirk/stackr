@@ -1,0 +1,46 @@
+package home
+
+import (
+	"github.com/labstack/echo/v4"
+	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+)
+
+templ homePage(c echo.Context, stacks []stackcmd.StackInfo, loadErr error) {
+	@components.Layout(c, "Stacks") {
+		<main class="container">
+			<header class="page-header">
+				<h1>Stacks</h1>
+				<p class="text-muted">Configured stacks discovered under the stackr stacks directory.</p>
+			</header>
+			if loadErr != nil {
+				<div class="alert alert-error">
+					{ "Failed to load stacks: " + loadErr.Error() }
+				</div>
+			} else if len(stacks) == 0 {
+				<div class="empty-state">
+					<p>No stacks discovered. Add a stack directory under your stacks dir and refresh.</p>
+				</div>
+			} else {
+				<table class="stacks-table">
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Type</th>
+							<th>Compose</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, s := range stacks {
+							<tr>
+								<td>{ s.Name }</td>
+								<td>{ string(s.Type) }</td>
+								<td>{ s.PrimaryComposePath() }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</main>
+	}
+}

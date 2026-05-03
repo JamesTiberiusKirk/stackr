@@ -29,11 +29,38 @@ const (
 	runOnDeployLabel = "stackr.cron.run_on_deploy"
 )
 
+// Recorder receives lifecycle callbacks for each cron execution. Implementations
+// typically persist the execution to a store. A nil Scheduler.Recorder is
+// treated as a no-op so callers without persistence can use the scheduler
+// unchanged (the CLI's local scheduling mode, for instance).
+type Recorder interface {
+	// Start is called immediately before the cron job runs. The returned
+	// id is opaque to the scheduler and is passed back to Finish so the
+	// recorder can correlate the start/finish pair. Errors are logged
+	// but do not abort the execution.
+	Start(ctx context.Context, stack, service, schedule, trigger, container string) (id string, err error)
+	// Finish is called after the cron job completes. err is non-nil on
+	// failure; stdout contains the captured combined output (best-effort).
+	Finish(ctx context.Context, id string, runErr error, stdout string)
+}
+
 type Scheduler struct {
-	mu   sync.Mutex
-	cron *cron.Cron
-	jobs []cronJob
-	cfg  config.Config
+	mu       sync.Mutex
+	cron     *cron.Cron
+	jobs     []cronJob
+	cfg      config.Config
+	recorder Recorder
+}
+
+// SetRecorder installs a Recorder. Pass nil to disable persistence.
+// Safe to call before or after Start; takes effect on the next execution.
+func (s *Scheduler) SetRecorder(r Recorder) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.recorder = r
+	s.mu.Unlock()
 }
 
 type cronJob struct {
@@ -212,7 +239,7 @@ func ExecuteJobManually(cfg config.Config, stack, service string, customCmd []st
 	} else {
 		log.Printf("manually executing cron job: stack=%s service=%s", stack, service)
 	}
-	s.executeWithCommand(*targetJob, customCmd)
+	s.executeWithCommand(*targetJob, customCmd, TriggerManual)
 	return nil
 }
 
@@ -279,16 +306,23 @@ func discoverJobs(cfg config.Config) ([]cronJob, error) {
 	return jobs, nil
 }
 
-// executeWithCommand executes a cron job with an optional custom command
-func (s *Scheduler) executeWithCommand(job cronJob, customCmd []string) {
-	s.executeInternal(job, customCmd)
+// Trigger values reported to the Recorder.
+const (
+	TriggerCron   = "cron"
+	TriggerManual = "manual"
+)
+
+// executeWithCommand executes a cron job with an optional custom command.
+// trigger reports what initiated the execution (TriggerCron or TriggerManual).
+func (s *Scheduler) executeWithCommand(job cronJob, customCmd []string, trigger string) {
+	s.executeInternal(job, customCmd, trigger)
 }
 
 func (s *Scheduler) execute(job cronJob) {
-	s.executeInternal(job, nil)
+	s.executeInternal(job, nil, TriggerCron)
 }
 
-func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
+func (s *Scheduler) executeInternal(job cronJob, customCmd []string, trigger string) {
 	ctx, cancel := context.WithTimeout(context.Background(), runner.CommandTimeout)
 	defer cancel()
 
@@ -382,7 +416,26 @@ func (s *Scheduler) executeInternal(job cronJob, customCmd []string) {
 	log.Printf("cron job started stack=%s service=%s container=%s",
 		job.Stack, job.Service, containerName)
 
-	if err := manager.Run(ctx, opts); err != nil {
+	s.mu.Lock()
+	rec := s.recorder
+	s.mu.Unlock()
+
+	var execID string
+	if rec != nil {
+		var recErr error
+		execID, recErr = rec.Start(ctx, job.Stack, job.Service, job.Schedule, trigger, containerName)
+		if recErr != nil {
+			log.Printf("cron recorder Start failed stack=%s service=%s: %v", job.Stack, job.Service, recErr)
+		}
+	}
+
+	runErr := manager.Run(ctx, opts)
+
+	if rec != nil {
+		rec.Finish(ctx, execID, runErr, stdout.String())
+	}
+
+	if runErr != nil {
 		if logWriters != nil {
 			_, _ = fmt.Fprintf(logWriters.ExecLog, "\n\n=== ERROR ===\n%s\n", stderr.String())
 			log.Printf("cron job failed stack=%s service=%s log_file=%s", job.Stack, job.Service, logWriters.ExecLogPath)

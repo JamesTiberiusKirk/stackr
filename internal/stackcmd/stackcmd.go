@@ -430,7 +430,8 @@ func (m *Manager) runCompose(ctx context.Context, stack string, composePaths []s
 			for _, p := range composePaths {
 				args = append(args, "-f", p)
 			}
-			varsCmd = append(args, opts.VarsCommand...)
+			args = append(args, opts.VarsCommand...)
+			varsCmd = args
 		}
 		debugf(opts.Debug, "%s: executing vars-only command %s", stack, strings.Join(varsCmd, " "))
 		cmd := exec.CommandContext(ctx, varsCmd[0], varsCmd[1:]...)

@@ -1,0 +1,51 @@
+# Schema reference: https://github.com/FyrmForge/hamr/blob/master/docs/guide/hamr-toml.md
+
+[hamr]
+version = "0.20.1"
+scaffolded_at = "2026-05-02"
+
+[options]
+database = "sqlite"
+db_connector = "gorm"
+auth = "session"
+css = "plain"
+websockets = false
+e2e = false
+stripe = false
+locale = false
+storage = "local"
+pgadmin = false
+alpine = false
+
+[static]
+dir = "static"
+dist = "dist"
+manifest = "internal/web/components/staticmanifest.go"
+package = "components"
+
+[dev]
+proxy_listen = ":3000"
+proxy_target = "$PORT"
+inject_reload = true
+
+[[dev.watch]]
+name = "templ"
+watch = "**/*.templ"
+ignore = "*_templ.go"
+cmd = "templ generate"
+debounce = 100
+
+[[dev.watch]]
+name = "site"
+watch = ["**/*.go", "**/*.templ", ".env"]
+ignore = ["*_templ.go", "*_test.go"]
+cmd = "go build -o ./bin/stackrd ./cmd/stackrd && ./bin/stackrd --generate"
+run = "./bin/stackrd"
+depends = ["templ"]
+reload = "full"
+
+[[dev.watch]]
+name = "static"
+watch = ["static/**/*"]
+cmd = "hamr gen static"
+debounce = 200

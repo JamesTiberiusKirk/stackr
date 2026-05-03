@@ -1,9 +1,13 @@
 //go:build integration
 
-package httpapi
+// Integration tests for the daemon's HTTP API. These exercise the full route
+// stack — middleware, bearer auth, service layer, real runner — against a
+// real SQLite store and (for deploy paths) a real Docker daemon.
+package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,15 +17,23 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/FyrmForge/hamr/pkg/server"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jamestiberiuskirk/stackr/internal/runner"
 	"github.com/jamestiberiuskirk/stackr/internal/testutil"
+
+	"github.com/jamestiberiuskirk/stackr/internal/api"
+	"github.com/jamestiberiuskirk/stackr/internal/db"
+	"github.com/jamestiberiuskirk/stackr/internal/repo/sqlite"
+	"github.com/jamestiberiuskirk/stackr/internal/service"
 )
 
 const testToken = "test-secret-token"
 
-func setupHTTPTest(t *testing.T, opts ...testutil.RepoOption) (*httptest.Server, string, string) {
+// setupAPITest spins up a fresh in-memory SQLite store, a StackrService backed
+// by a temp test repo, and an httptest.Server fronting the registered API
+// routes. Returns the server, repo root, and chosen stack name.
+func setupAPITest(t *testing.T, opts ...testutil.RepoOption) (*httptest.Server, string, string) {
 	t.Helper()
 	testutil.RequireDockerAvailable(t)
 
@@ -37,7 +49,6 @@ func setupHTTPTest(t *testing.T, opts ...testutil.RepoOption) (*httptest.Server,
 	root, stackName := testutil.SetupTestRepo(t, opts...)
 	testutil.CleanupComposeProjectByDir(t, root, stackName)
 
-	// Write the tag env var matching the stack name
 	tagEnv := testutil.TagEnvVar(stackName)
 	envPath := filepath.Join(root, ".env")
 	require.NoError(t, os.WriteFile(envPath, []byte(tagEnv+"=alpine\n"), 0o644))
@@ -45,12 +56,25 @@ func setupHTTPTest(t *testing.T, opts ...testutil.RepoOption) (*httptest.Server,
 	cfg := testutil.BuildConfigDirect(root)
 	cfg.Token = testToken
 
-	r := runner.New(cfg)
-	handler := New(cfg, r)
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+	database, err := db.ConnectContext(context.Background(), ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(database))
+	store := sqlite.NewStore(database)
 
-	return server, root, stackName
+	stackrService := service.NewStackrService(cfg, store)
+
+	srv, err := server.New(server.WithDevMode(true))
+	require.NoError(t, err)
+
+	api.RegisterRoutes(srv, &api.Deps{
+		Store:  store,
+		Stackr: stackrService,
+	})
+
+	httpServer := httptest.NewServer(srv.Echo())
+	t.Cleanup(httpServer.Close)
+
+	return httpServer, root, stackName
 }
 
 func doRequest(t *testing.T, server *httptest.Server, method, path string, body interface{}, token string) *http.Response {
@@ -76,47 +100,48 @@ func doRequest(t *testing.T, server *httptest.Server, method, path string, body 
 	return resp
 }
 
-func TestHealthEndpoint(t *testing.T) {
-	server, _, _ := setupHTTPTest(t)
+func TestAPIHealth(t *testing.T) {
+	srv, _, _ := setupAPITest(t)
 
-	resp := doRequest(t, server, http.MethodGet, "/healthz", nil, "")
+	resp := doRequest(t, srv, http.MethodGet, "/api/health", nil, "")
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var result map[string]string
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-	require.Equal(t, "ok", result["status"])
+	require.Equal(t, "healthy", result["status"])
 }
 
-func TestDeployEndpoint(t *testing.T) {
+func TestAPIDeploy(t *testing.T) {
 	t.Run("MissingAuthReturns401", func(t *testing.T) {
-		server, _, stackName := setupHTTPTest(t)
+		srv, _, stackName := setupAPITest(t)
 
 		body := map[string]string{"stack": stackName, "tag": "v1.0.0"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, "")
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, "")
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("WrongTokenReturns401", func(t *testing.T) {
-		server, _, stackName := setupHTTPTest(t)
+		srv, _, stackName := setupAPITest(t)
 
 		body := map[string]string{"stack": stackName, "tag": "v1.0.0"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, "wrong-token")
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, "wrong-token")
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("InvalidBodyReturns400", func(t *testing.T) {
-		server, _, _ := setupHTTPTest(t)
+		srv, _, _ := setupAPITest(t)
 
-		req, err := http.NewRequest(http.MethodPost, server.URL+"/deploy",
+		req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/deploy",
 			bytes.NewReader([]byte("not json")))
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+testToken)
+		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -126,27 +151,30 @@ func TestDeployEndpoint(t *testing.T) {
 	})
 
 	t.Run("MissingStackReturns400", func(t *testing.T) {
-		server, _, _ := setupHTTPTest(t)
+		srv, _, _ := setupAPITest(t)
 
 		body := map[string]string{"tag": "v1.0.0"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, testToken)
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, testToken)
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
-	t.Run("NonExistentStackReturns400", func(t *testing.T) {
-		server, _, _ := setupHTTPTest(t)
+	// Contract drift vs legacy daemon: unknown stack now yields 404 (was 400).
+	// The new daemon distinguishes "not found" from "invalid input"; CLI clients
+	// should accept either status as a non-success outcome.
+	t.Run("NonExistentStackReturns404", func(t *testing.T) {
+		srv, _, _ := setupAPITest(t)
 
 		body := map[string]string{"stack": "doesnotexist", "tag": "v1.0.0"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, testToken)
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, testToken)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 
 	t.Run("AutoDeployDisabledReturns403", func(t *testing.T) {
-		server, _, stackName := setupHTTPTest(t,
+		srv, _, stackName := setupAPITest(t,
 			testutil.WithComposeContent(`services:
   web:
     image: nginx:alpine
@@ -157,38 +185,43 @@ func TestDeployEndpoint(t *testing.T) {
 `))
 
 		body := map[string]string{"stack": stackName, "tag": "v1.0.0"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, testToken)
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, testToken)
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 
 	t.Run("SuccessfulDeployReturns200", func(t *testing.T) {
-		server, _, stackName := setupHTTPTest(t)
+		srv, _, stackName := setupAPITest(t)
 
 		body := map[string]string{"stack": stackName, "tag": "latest"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, testToken)
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, testToken)
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var result map[string]interface{}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-		require.Equal(t, "ok", result["status"])
+		require.Equal(t, "success", result["status"])
+		require.Equal(t, stackName, result["stack"])
+		require.Equal(t, "latest", result["tag"])
+		require.NotEmpty(t, result["id"])
 	})
 
 	t.Run("InvalidTagFormatReturns400", func(t *testing.T) {
-		server, _, stackName := setupHTTPTest(t)
+		srv, _, stackName := setupAPITest(t)
 
 		body := map[string]string{"stack": stackName, "tag": "not a valid tag!!!"}
-		resp := doRequest(t, server, http.MethodPost, "/deploy", body, testToken)
+		resp := doRequest(t, srv, http.MethodPost, "/api/deploy", body, testToken)
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 }
 
-func TestDeployEndpointCreatesStack(t *testing.T) {
+// TestAPIDeployCreatesStack verifies a successful deploy writes the resolved
+// tag back into the repo .env file, matching the legacy daemon's behavior.
+func TestAPIDeployCreatesStack(t *testing.T) {
 	testutil.RequireDockerAvailable(t)
 
 	stackName := testutil.UniqueStackName()
@@ -208,18 +241,26 @@ func TestDeployEndpointCreatesStack(t *testing.T) {
 	cfg := testutil.BuildConfigDirect(root)
 	cfg.Token = testToken
 
-	r := runner.New(cfg)
-	handler := New(cfg, r)
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+	database, err := db.ConnectContext(context.Background(), ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(database))
+	store := sqlite.NewStore(database)
+
+	stackrService := service.NewStackrService(cfg, store)
+
+	srv, err := server.New(server.WithDevMode(true))
+	require.NoError(t, err)
+	api.RegisterRoutes(srv, &api.Deps{Store: store, Stackr: stackrService})
+
+	httpServer := httptest.NewServer(srv.Echo())
+	t.Cleanup(httpServer.Close)
 
 	body := map[string]string{"stack": stackName, "tag": "latest"}
-	resp := doRequest(t, server, http.MethodPost, "/deploy", body, testToken)
+	resp := doRequest(t, httpServer, http.MethodPost, "/api/deploy", body, testToken)
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify the tag was written to the env file
 	data, err := os.ReadFile(filepath.Join(root, ".env"))
 	require.NoError(t, err)
 	require.Contains(t, string(data), tagEnv+"=latest")

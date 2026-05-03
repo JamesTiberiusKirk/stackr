@@ -24,6 +24,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install dev tools (templ, hamr)
+        run: make install
+
+      - name: Verify generated templ files are committed
+        run: |
+          templ generate
+          if ! git diff --quiet -- '*_templ.go'; then
+            echo "::error::Generated templ files are out of date. Run 'templ generate' and commit."
+            git diff --stat -- '*_templ.go'
+            exit 1
+          fi
+
       - name: Run unit tests
         run: go test ./...
 
@@ -43,6 +55,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install dev tools
+        run: make install
+
+      - name: Generate templ files
+        run: templ generate
+
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -51,3 +69,6 @@ jobs:
 
       - name: Run linters
         run: make lint
+
+      - name: Lint templ files
+        run: make templint

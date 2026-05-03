@@ -1,0 +1,123 @@
+package db
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+)
+
+const (
+	maxRetries     = 5
+	attemptTimeout = 3 * time.Second
+)
+
+// Connect opens a GORM connection to the given DSN.
+func Connect(dsn string) (*gorm.DB, error) {
+	return ConnectContext(context.Background(), dsn)
+}
+
+// ConnectContext opens a GORM connection with retry and exponential backoff.
+// It respects the provided context for cancellation.
+func ConnectContext(ctx context.Context, dsn string) (*gorm.DB, error) {
+	dsn = prepareSQLiteDSN(dsn)
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+		if err != nil {
+			lastErr = err
+		} else {
+			sqlDB, err := db.DB()
+			if err != nil {
+				lastErr = err
+			} else {
+				pingCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
+				lastErr = sqlDB.PingContext(pingCtx)
+				cancel()
+				if lastErr == nil {
+					return db, nil
+				}
+			}
+		}
+
+		if attempt == maxRetries-1 {
+			break
+		}
+
+		sleep := backoffWithJitter(attempt)
+		slog.Warn("db: retrying connection",
+			"attempt", attempt+1,
+			"backoff", sleep,
+			"error", lastErr,
+		)
+		select {
+		case <-time.After(sleep):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("db: connect canceled: %w", ctx.Err())
+		}
+	}
+
+	return nil, fmt.Errorf("db: connecting: %w", lastErr)
+}
+
+func backoffWithJitter(attempt int) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt > 5 {
+		attempt = 5 // cap at 32s before jitter
+	}
+	base := time.Duration(1<<attempt) * time.Second
+	return jitter(base)
+}
+
+func jitter(base time.Duration) time.Duration {
+	if base <= 0 {
+		return 0
+	}
+
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return base
+	}
+
+	// Scale by 0.5x to 1.5x to avoid synchronized retries across instances.
+	f := 0.5 + (float64(binary.LittleEndian.Uint64(b[:])%1000) / 1000.0)
+	return time.Duration(float64(base) * f)
+}
+
+// AutoMigrate runs GORM auto-migration for all registered models.
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(models()...)
+}
+
+// prepareSQLiteDSN ensures the parent directory of the database file exists
+// and appends the standard pragmas (WAL, foreign_keys, busy_timeout) so every
+// connection opened by database/sql's pool picks them up.
+func prepareSQLiteDSN(dsn string) string {
+	path := dsn
+	if i := strings.IndexByte(dsn, '?'); i != -1 {
+		path = dsn[:i]
+	}
+	if path != "" && path != ":memory:" {
+		if dir := filepath.Dir(path); dir != "" && dir != "." {
+			_ = os.MkdirAll(dir, 0o755)
+		}
+	}
+
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+	return dsn +
+		sep + "_pragma=journal_mode(WAL)" +
+		"&_pragma=foreign_keys(on)" +
+		"&_pragma=busy_timeout(5000)"
+}

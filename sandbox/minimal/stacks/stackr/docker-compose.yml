@@ -1,0 +1,52 @@
+name: stackr-sandbox-minimal
+
+# Local sandbox modeled after a production stackr setup. Traefik fronts the
+# stackr daemon and the deployed app stacks. For local dev we run the daemon
+# natively (hamr dev) and have traefik route to host.docker.internal:8080 via
+# traefik/dynamic.yml. To exercise the containerized daemon end-to-end,
+# uncomment the `stackrd` service below and remove the host.docker.internal
+# router from traefik/dynamic.yml so the docker provider takes over.
+
+services:
+  traefik:
+    image: traefik:v3
+    container_name: stackr-sandbox-traefik
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8081:8080" # traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+
+  # stackrd:
+  #   image: ghcr.io/jamestiberiuskirk/stackrd:latest
+  #   container_name: stackr-sandbox-daemon
+  #   environment:
+  #     PORT: 8080
+  #     DEV_MODE: "true"
+  #     STACKR_TOKEN: dev-token-123
+  #     STACKR_REPO_ROOT: /srv/stackr_repo
+  #     # Absolute host path of the parent stackr repo (sandbox/minimal). The
+  #     # daemon needs this so its compose-in-compose runs can rewrite bind
+  #     # mounts onto the host. Set explicitly because ${PWD} resolves to
+  #     # whichever directory `docker compose` was invoked from.
+  #     STACKR_HOST_REPO_ROOT: /absolute/path/to/sandbox/minimal
+  #   volumes:
+  #     - ../..:/srv/stackr_repo
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   labels:
+  #     - traefik.enable=true
+  #     - traefik.http.routers.stackrd.rule=Host(`stackr.localhost`)
+  #     - traefik.http.routers.stackrd.entrypoints=web
+  #     - traefik.http.services.stackrd.loadbalancer.server.port=8080
+  #   restart: unless-stopped
