@@ -1,6 +1,6 @@
 //go:build integration
 
-package runner
+package integration
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jamestiberiuskirk/stackr/internal/config"
+	"github.com/jamestiberiuskirk/stackr/internal/runner"
 	"github.com/jamestiberiuskirk/stackr/internal/testutil"
 )
 
@@ -35,7 +36,7 @@ func TestDeploySuccess(t *testing.T) {
 
 	cfg := testutil.BuildConfigDirect(root)
 
-	r := New(cfg)
+	r := runner.New(cfg)
 
 	stackCfg := config.StackConfig{
 		TagEnv: tagEnv,
@@ -51,7 +52,6 @@ func TestDeploySuccess(t *testing.T) {
 	require.Equal(t, stackName, result.Stack)
 	require.Equal(t, "alpine", result.Tag)
 
-	// Verify container is actually running
 	require.True(t, testutil.ContainerRunningByProject(t, stackName),
 		"expected container to be running after deploy")
 }
@@ -75,7 +75,7 @@ func TestDeployFailureRollsBackEnv(t *testing.T) {
 
 	cfg := testutil.BuildConfigDirect(root)
 
-	r := New(cfg)
+	r := runner.New(cfg)
 
 	stackCfg := config.StackConfig{
 		TagEnv: tagEnv,
@@ -88,10 +88,9 @@ func TestDeployFailureRollsBackEnv(t *testing.T) {
 	_, err := r.Deploy(ctx, stackName, stackCfg, "v2.0.0")
 	require.Error(t, err, "deploy should fail with non-existent image")
 
-	var cmdErr *CommandError
+	var cmdErr *runner.CommandError
 	require.ErrorAs(t, err, &cmdErr, "error should be a CommandError")
 
-	// Verify .env was rolled back to v1.0.0
 	data, err := os.ReadFile(cfg.EnvFile)
 	require.NoError(t, err)
 	require.Contains(t, string(data), tagEnv+"=v1.0.0",
@@ -119,7 +118,7 @@ func TestDeployConcurrentSerialization(t *testing.T) {
 
 	cfg := testutil.BuildConfigDirect(root)
 
-	r := New(cfg)
+	r := runner.New(cfg)
 
 	stackCfg := config.StackConfig{
 		TagEnv: tagEnv,
@@ -157,17 +156,8 @@ func TestDeployConcurrentSerialization(t *testing.T) {
 	require.Len(t, starts, 2)
 	require.Len(t, ends, 2)
 
-	// The mutex should serialize execution. Verify that one goroutine's
-	// end time is before (or very close to) the other's start time,
-	// meaning they didn't truly overlap. We check that the ranges don't
-	// fully overlap by verifying min(end) >= min(start) of the later one
-	// within a reasonable margin. Since compose operations take seconds,
-	// if they were truly parallel, both starts would be nearly identical
-	// and both ends would be nearly identical. With serialization, the
-	// total wall time should be roughly 2x a single deploy.
-
-	// Simple check: total elapsed time should be at least 2x the fastest
-	// single deploy time. This is a heuristic - the key thing is the test
-	// doesn't deadlock or fail.
+	// Heuristic only — we don't have a hard signal that the runner mutex
+	// fired (no observability hook there). The non-deadlock + non-error
+	// outcome is the actual contract this test enforces.
 	t.Logf("concurrent deploy completed: starts=%v ends=%v", starts, ends)
 }

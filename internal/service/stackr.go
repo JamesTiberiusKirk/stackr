@@ -20,6 +20,13 @@ import (
 // ErrStackNotFound is returned when a named stack does not exist or is not a valid stack directory.
 var ErrStackNotFound = errors.New("stack not found")
 
+// ErrInvalidStackName is returned when a submitted stack name fails validation
+// (path traversal characters, whitespace, reserved literals). Distinct from
+// ErrStackNotFound so the API layer can return 400 (bad request) vs 404
+// (not found) — 404 here would tell the client to retry with another name,
+// when really the input is the problem.
+var ErrInvalidStackName = errors.New("invalid stack name")
+
 // ErrAutoDeployDisabled is returned when a stack opts out of automated deployment via compose label.
 var ErrAutoDeployDisabled = errors.New("auto-deployment is disabled for this stack")
 
@@ -71,12 +78,22 @@ func (s *StackrService) ListStacks(_ context.Context) ([]stackcmd.StackInfo, err
 	return stacks, nil
 }
 
-// GetStack resolves a single stack by name. Returns ErrStackNotFound if the
-// stack does not exist or is not a recognized stack directory.
+// GetStack resolves a single stack by name. Returns ErrInvalidStackName for
+// malformed input (path traversal, whitespace, reserved names) or
+// ErrStackNotFound when the name is well-formed but no stack lives at that
+// path. The two are distinct so the API layer can map them to 400 vs 404.
+//
+// Both branches use double-%w so callers get back BOTH the service-level
+// sentinel AND the original stackcmd error in the chain — that matters for
+// diagnostics (the stackcmd error has the offending name) and for tests
+// that want to assert the underlying cause.
 func (s *StackrService) GetStack(_ context.Context, name string) (*stackcmd.StackInfo, error) {
 	info, err := stackcmd.ResolveStackPath(s.cfg, name)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrStackNotFound, err)
+		if errors.Is(err, stackcmd.ErrInvalidStackName) {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidStackName, err)
+		}
+		return nil, fmt.Errorf("%w: %w", ErrStackNotFound, err)
 	}
 	return &info, nil
 }

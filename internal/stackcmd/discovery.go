@@ -6,9 +6,45 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/jamestiberiuskirk/stackr/internal/config"
 )
+
+// ErrInvalidStackName is returned when a stack name fails ValidateStackName.
+// Errors from this function wrap the sentinel so callers can distinguish
+// malformed input (400) from a not-found stack (404) at HTTP boundaries.
+var ErrInvalidStackName = errors.New("invalid stack name")
+
+// ValidateStackName rejects names that could escape the stacks directory via
+// path traversal or trip on weird shell/filesystem behavior. The daemon often
+// runs as root inside containers; an authenticated attacker who can submit a
+// stack name to /api/deploy could otherwise probe the host filesystem above
+// the stacks dir, or coerce the daemon into nonsense states by submitting
+// `.`, `..`, or whitespace-padded names that pass naive checks but resolve
+// onto unexpected paths.
+//
+// Allowed: bare directory names — alphanumerics plus `-`, `_`, `.` (not as
+// the only character). Rejected: anything containing `/`, `\`, `..`, leading
+// or trailing whitespace; the literal names `.` and `..`.
+func ValidateStackName(name string) error {
+	if name == "" {
+		return fmt.Errorf("%w: stack name is empty", ErrInvalidStackName)
+	}
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("%w: %q has leading or trailing whitespace", ErrInvalidStackName, name)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("%w: %q", ErrInvalidStackName, name)
+	}
+	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return fmt.Errorf("%w: %q", ErrInvalidStackName, name)
+	}
+	if filepath.Base(name) != name {
+		return fmt.Errorf("%w: %q", ErrInvalidStackName, name)
+	}
+	return nil
+}
 
 // StackType indicates whether a stack is local or remote
 type StackType string
@@ -71,6 +107,9 @@ func DiscoverStacks(cfg config.Config) ([]StackInfo, error) {
 
 // ResolveStackPath resolves a stack name to its compose paths and type
 func ResolveStackPath(cfg config.Config, stackName string) (StackInfo, error) {
+	if err := ValidateStackName(stackName); err != nil {
+		return StackInfo{}, err
+	}
 	stackDir := filepath.Join(cfg.StacksDir, stackName)
 
 	// Check if stack directory exists

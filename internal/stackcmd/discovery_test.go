@@ -266,3 +266,61 @@ remote_repo:
 	require.NoError(t, err)
 	require.Equal(t, StackTypeRemote, info.Type)
 }
+
+func TestValidateStackName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "simple name", input: "myapp", wantErr: false},
+		{name: "name with hyphen", input: "my-app", wantErr: false},
+		{name: "name with underscore", input: "my_app", wantErr: false},
+		{name: "name with dots", input: "my.app", wantErr: false},
+		{name: "numeric name", input: "123", wantErr: false},
+
+		{name: "empty name", input: "", wantErr: true},
+		{name: "single dot", input: ".", wantErr: true},
+		{name: "dot-dot traversal", input: "..", wantErr: true},
+		{name: "relative path up", input: "../etc", wantErr: true},
+		{name: "deep traversal", input: "../../etc/passwd", wantErr: true},
+		{name: "forward slash", input: "foo/bar", wantErr: true},
+		{name: "backslash", input: `foo\bar`, wantErr: true},
+		{name: "dot-dot in middle", input: "foo..bar", wantErr: true},
+		{name: "absolute path", input: "/etc/passwd", wantErr: true},
+		{name: "leading whitespace", input: "  myapp", wantErr: true},
+		{name: "trailing whitespace", input: "myapp  ", wantErr: true},
+		{name: "leading tab", input: "\tmyapp", wantErr: true},
+		{name: "trailing newline", input: "myapp\n", wantErr: true},
+		{name: "only whitespace", input: "   ", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateStackName(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.ErrorIs(t, err, ErrInvalidStackName,
+					"errors must wrap ErrInvalidStackName so callers can map them to 400")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestResolveStackPath_RejectsPathTraversal verifies the ValidateStackName
+// gate inside ResolveStackPath blocks `..`-style names before they hit the
+// filesystem. Without this gate, an attacker who controls the stack name on
+// /api/deploy could enumerate sibling/parent directories of StacksDir.
+func TestResolveStackPath_RejectsPathTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	stacksDir := filepath.Join(tmpDir, "stacks")
+	require.NoError(t, os.MkdirAll(stacksDir, 0o755))
+
+	cfg := config.Config{StacksDir: stacksDir, RepoRoot: tmpDir}
+
+	_, err := ResolveStackPath(cfg, "../../etc")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid stack name")
+}

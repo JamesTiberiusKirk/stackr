@@ -86,7 +86,7 @@ func (h *handler) Submit(c echo.Context) error {
 	switch {
 	case errors.Is(err, service.ErrAutoDeployDisabled):
 		return echo.NewHTTPError(http.StatusForbidden, err.Error())
-	case errors.Is(err, service.ErrInvalidTag):
+	case errors.Is(err, service.ErrInvalidStackName), errors.Is(err, service.ErrInvalidTag):
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	case errors.Is(err, service.ErrStackNotFound):
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
