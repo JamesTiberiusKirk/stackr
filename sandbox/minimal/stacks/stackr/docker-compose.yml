@@ -26,6 +26,8 @@ services:
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     extra_hosts:
       - host.docker.internal:host-gateway
+    networks:
+      - sandbox
     restart: unless-stopped
 
   # stackrd:
@@ -38,8 +40,8 @@ services:
   #     STACKR_REPO_ROOT: /srv/stackr_repo
   #     # Absolute host path of the parent stackr repo (sandbox/minimal). The
   #     # daemon needs this so its compose-in-compose runs can rewrite bind
-  #     # mounts onto the host. Set explicitly because ${PWD} resolves to
-  #     # whichever directory `docker compose` was invoked from.
+  #     # mounts onto the host. Set explicitly — the env-var PWD resolves to
+  #     # whichever directory docker compose was invoked from.
   #     STACKR_HOST_REPO_ROOT: /absolute/path/to/sandbox/minimal
   #   volumes:
   #     - ../..:/srv/stackr_repo
@@ -49,4 +51,14 @@ services:
   #     - traefik.http.routers.stackrd.rule=Host(`stackr.localhost`)
   #     - traefik.http.routers.stackrd.entrypoints=web
   #     - traefik.http.services.stackrd.loadbalancer.server.port=8080
+  #   networks:
+  #     - sandbox
   #   restart: unless-stopped
+
+# Shared external network all sandbox stacks join so traefik can route to
+# them. Pre-created by `make sandbox-up`; declared external here so this
+# compose can be brought up in any order relative to the other stacks.
+networks:
+  sandbox:
+    name: stackr-sandbox
+    external: true

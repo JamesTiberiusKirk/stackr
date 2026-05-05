@@ -23,6 +23,21 @@ type Store interface {
 	// CreateUser inserts a new user.
 	CreateUser(ctx context.Context, user *User) error
 
+	// UpdateUser updates the columns of an existing user identified by ID.
+	UpdateUser(ctx context.Context, user *User) error
+
+	// ListUsers returns every user, ordered by email.
+	ListUsers(ctx context.Context) ([]User, error)
+
+	// DeleteUser removes the user and any sessions/invite tokens
+	// referencing them.
+	DeleteUser(ctx context.Context, id string) error
+
+	// Invite tokens.
+	CreateInviteToken(ctx context.Context, t *InviteToken) error
+	GetInviteTokenByToken(ctx context.Context, token string) (*InviteToken, error)
+	MarkInviteUsed(ctx context.Context, id string) error
+
 	// Deployments.
 	CreateDeployment(ctx context.Context, d *Deployment) error
 	UpdateDeployment(ctx context.Context, d *Deployment) error

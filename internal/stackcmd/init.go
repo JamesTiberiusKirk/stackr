@@ -100,7 +100,7 @@ This project was initialized with Stackr.
 
 ## Getting Started
 
-1. Review and customize .stackr.yaml configuration
+1. Review and customize stackr.yaml configuration
 2. Add your secrets to .env file (not committed to git)
 3. Customize the example stacks in stacks/ directory
 4. Deploy your stacks:
@@ -120,7 +120,7 @@ stackr all get-vars
 
 ` + "```" + `
 .
-├── .stackr.yaml       # Stackr configuration
+├── stackr.yaml       # Stackr configuration
 ├── .env               # Secrets (not in git)
 ├── .gitignore        # Git ignore rules
 ├── README.md         # This file
@@ -150,16 +150,16 @@ func RunInit() error {
 
 	fmt.Printf("Initializing Stackr project in %s\n\n", cwd)
 
-	// Check if .stackr.yaml already exists
-	stackrConfigPath := filepath.Join(cwd, ".stackr.yaml")
+	// Check if stackr.yaml already exists
+	stackrConfigPath := filepath.Join(cwd, "stackr.yaml")
 	if _, err := os.Stat(stackrConfigPath); err == nil {
-		return fmt.Errorf(".stackr.yaml already exists in this directory")
+		return fmt.Errorf("stackr.yaml already exists in this directory")
 	}
 
-	// Create .stackr.yaml
-	fmt.Println("Creating .stackr.yaml...")
+	// Create stackr.yaml
+	fmt.Println("Creating stackr.yaml...")
 	if err := os.WriteFile(stackrConfigPath, []byte(stackrConfigTemplate), 0644); err != nil {
-		return fmt.Errorf("failed to create .stackr.yaml: %w", err)
+		return fmt.Errorf("failed to create stackr.yaml: %w", err)
 	}
 
 	// Create .env file if it doesn't exist
@@ -234,7 +234,7 @@ func RunInit() error {
 
 	fmt.Println("\n✓ Stackr project initialized successfully!")
 	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Review and customize .stackr.yaml")
+	fmt.Println("  1. Review and customize stackr.yaml")
 	fmt.Println("  2. Update STACKR_TOKEN in .env file")
 	fmt.Println("  3. Start your stacks:")
 	fmt.Println("     stackr traefik update")

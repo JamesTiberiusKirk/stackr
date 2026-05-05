@@ -72,6 +72,39 @@ type cronJob struct {
 	ComposeFiles []string
 }
 
+// JobInfo is the publicly-visible shape of a cron job: only the metadata
+// that's safe to render in API/UI surfaces, with no scheduler internals
+// (compose paths, runtime state) leaking out.
+type JobInfo struct {
+	Stack       string
+	Service     string
+	Schedule    string
+	Profile     string
+	RunOnDeploy bool
+}
+
+// DiscoverJobs scans configured stacks for cron-labelled services and
+// returns their metadata. Read-only — no scheduler state is touched, so
+// callers can invoke it for UI rendering without coupling to a running
+// Scheduler.
+func DiscoverJobs(cfg config.Config) ([]JobInfo, error) {
+	internal, err := discoverJobs(cfg)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]JobInfo, 0, len(internal))
+	for _, j := range internal {
+		out = append(out, JobInfo{
+			Stack:       j.Stack,
+			Service:     j.Service,
+			Schedule:    j.Schedule,
+			Profile:     j.Profile,
+			RunOnDeploy: j.RunOnDeploy,
+		})
+	}
+	return out, nil
+}
+
 type composeFile struct {
 	Services map[string]composeService `yaml:"services"`
 }
@@ -208,9 +241,13 @@ func (s *Scheduler) startLocked() error {
 	return nil
 }
 
-// ExecuteJobManually finds and executes a specific cron job by stack and service name
-// If customCmd is provided, it overrides the default command from the compose file
-func ExecuteJobManually(cfg config.Config, stack, service string, customCmd []string) error {
+// ExecuteJobManually finds and executes a specific cron job by stack and
+// service name. If customCmd is provided, it overrides the default command
+// from the compose file. recorder is optional — pass nil to run without
+// persisting an execution row (e.g. from the CLI which has no DB). The
+// daemon's UI passes a real Recorder so manually-triggered runs show up
+// on /cron/executions.
+func ExecuteJobManually(cfg config.Config, stack, service string, customCmd []string, recorder Recorder) error {
 	jobs, err := discoverJobs(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to discover jobs: %w", err)
@@ -229,9 +266,13 @@ func ExecuteJobManually(cfg config.Config, stack, service string, customCmd []st
 		return fmt.Errorf("cron job not found: stack=%s service=%s (make sure service has stackr.cron.schedule label)", stack, service)
 	}
 
-	// Create a temporary scheduler just to execute this one job
+	// Create a temporary scheduler just to execute this one job. A
+	// caller-supplied recorder lets persistence flow through without
+	// dragging in the full background scheduler — the executor only
+	// needs the recorder field on the Scheduler struct.
 	s := &Scheduler{
-		cfg: cfg,
+		cfg:      cfg,
+		recorder: recorder,
 	}
 
 	if len(customCmd) > 0 {

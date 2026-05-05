@@ -1,0 +1,76 @@
+package jobs
+
+import (
+	"github.com/labstack/echo/v4"
+
+	"github.com/jamestiberiuskirk/stackr/internal/cronjobs"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components/form"
+)
+
+templ jobsPage(c echo.Context, jobs []cronjobs.JobInfo, loadErr error) {
+	@components.Layout(c, "Cron Jobs") {
+		<main class="container">
+			<h1>Cron Jobs</h1>
+			<p class="text-muted">Discovered from compose labels.</p>
+			if loadErr != nil {
+				<div class="alert alert-error">{ "Failed to discover cron jobs: " + loadErr.Error() }</div>
+			} else if len(jobs) == 0 {
+				<div class="empty-state">
+					<p>No cron jobs discovered. Add a service with a <code>stackr.cron.schedule</code> label to a stack.</p>
+				</div>
+			} else {
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Stack</th>
+							<th>Service</th>
+							<th>Schedule</th>
+							<th>Profile</th>
+							<th>Run on deploy</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, j := range jobs {
+							<tr>
+								<td><a href={ templ.SafeURL("/stacks/" + j.Stack) }>{ j.Stack }</a></td>
+								<td>{ j.Service }</td>
+								<td><code>{ scheduleOrManual(j.Schedule) }</code></td>
+								<td>{ orDash(j.Profile) }</td>
+								<td>{ yesNo(j.RunOnDeploy) }</td>
+								<td>
+									<form method="POST" action={ templ.SafeURL("/cron/jobs/" + j.Stack + "/" + j.Service + "/run") } class="action-form">
+										@form.CSRFField(c)
+										<button type="submit" class="btn btn-secondary">Run now</button>
+									</form>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</main>
+	}
+}
+
+func scheduleOrManual(schedule string) string {
+	if schedule == "" {
+		return "manual only"
+	}
+	return schedule
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}

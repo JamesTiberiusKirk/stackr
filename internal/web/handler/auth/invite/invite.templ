@@ -1,0 +1,77 @@
+package invite
+
+import (
+	"github.com/labstack/echo/v4"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components/form"
+)
+
+templ invitePage(c echo.Context, f AcceptForm, email string, errors map[string]string) {
+	@components.Layout(c, "Accept Invite") {
+		<div class="container">
+			<div class="auth-card">
+				<h2 class="text-center">Set your password</h2>
+				<p class="text-center text-muted">
+					Setting password for <strong>{ email }</strong>
+				</p>
+				@inviteForm(c, f, errors)
+			</div>
+		</div>
+	}
+}
+
+templ inviteForm(c echo.Context, f AcceptForm, errors map[string]string) {
+	<form
+		id="accept-invite-form"
+		hx-post="/accept-invite"
+		hx-swap="outerHTML"
+		hx-target="#accept-invite-form"
+		method="POST"
+		action="/accept-invite"
+	>
+		@form.CSRFField(c)
+		<input type="hidden" name="token" value={ f.Token }/>
+		if form.GetError(errors, "general") != "" {
+			<div class="alert alert-error">
+				{ form.GetError(errors, "general") }
+			</div>
+		}
+		<div class="form-group">
+			<label for="password">New password</label>
+			<input
+				type="password"
+				id="password"
+				name="password"
+				autocomplete="new-password"
+			/>
+			@form.FieldError("password", form.GetError(errors, "password"))
+		</div>
+		<div class="form-group">
+			<label for="confirm_password">Confirm password</label>
+			<input
+				type="password"
+				id="confirm_password"
+				name="confirm_password"
+				autocomplete="new-password"
+			/>
+			@form.FieldError("confirm_password", form.GetError(errors, "confirm_password"))
+		</div>
+		<button type="submit" class="btn btn-primary" style="width:100%">Set password</button>
+	</form>
+}
+
+// invalidPage is shown when the token is missing/used/expired or the user
+// is gone. We use the existing error layout to keep messaging consistent.
+templ invalidPage(message string) {
+	@components.Layout(nil, "Invite Unavailable") {
+		<div class="container">
+			<div class="auth-card text-center">
+				<h2>Invite unavailable</h2>
+				<p class="text-muted">{ message }</p>
+				<p class="text-center" style="margin-top:1rem">
+					<a href="/login">Back to log in</a>
+				</p>
+			</div>
+		</div>
+	}
+}

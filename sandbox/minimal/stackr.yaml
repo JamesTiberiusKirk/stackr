@@ -1,0 +1,35 @@
+stacks_dir: stacks
+
+cron:
+  profile: cron
+  enable_file_logs: true
+  logs_dir: logs/cron
+  docker_container_retention: 3
+
+http:
+  base_domain: localhost
+
+paths:
+  backup_dir: ./backups
+  pools:
+    SSD: .vols_ssd
+
+# Demo of stackr's env-injection magic. Three layers, all rendered into
+# the running container's environment by the daemon at deploy/cron time:
+#   1. env.global       — every stack gets these
+#   2. env.stacks.X     — only stack X gets these (overrides global)
+#   3. STACKR_PROV_*    — auto-provisioned per-stack (e.g. POOL paths)
+# The heartbeat cron service prints all three so the merge is visible
+# in /cron/executions.
+env:
+  global:
+    LOG_LEVEL: debug
+  stacks:
+    heartbeat:
+      GREETING: "hello from stackr.yaml"
+
+auth:
+  users:
+    - email: admin@stackr.local
+      name: Admin
+      role: admin

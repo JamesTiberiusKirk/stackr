@@ -4,20 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/FyrmForge/hamr/pkg/auth"
-	"github.com/google/uuid"
 
 	"github.com/jamestiberiuskirk/stackr/internal/repo"
 )
 
-var (
-	ErrEmailTaken        = errors.New("email already registered")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-)
+// ErrInvalidCredentials is returned when authentication fails — wrong email,
+// wrong password, or a user whose PasswordHash is still empty (declared but
+// not yet set via `stackr set-password`).
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
-// AuthService handles authentication logic.
+// AuthService handles authentication logic. Users are not created here —
+// they're declared in stackr.yaml and synced on boot. This service only
+// verifies credentials against existing rows.
 type AuthService struct {
 	store repo.Store
 }
@@ -27,41 +27,9 @@ func NewAuthService(store repo.Store) *AuthService {
 	return &AuthService{store: store}
 }
 
-// Register creates a new user with a hashed password.
-func (s *AuthService) Register(ctx context.Context, email, password, name string) (*repo.User, error) {
-	existing, err := s.store.GetUserByEmail(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("check existing user: %w", err)
-	}
-	if existing != nil {
-		return nil, ErrEmailTaken
-	}
-
-	hash, err := auth.HashPassword(password)
-	if err != nil {
-		return nil, fmt.Errorf("hash password: %w", err)
-	}
-
-	now := time.Now()
-	user := &repo.User{
-		ID:           uuid.New().String(),
-		Email:        email,
-		PasswordHash: hash,
-		Name:         name,
-		Role:         "user",
-		Active:       true,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-
-	if err := s.store.CreateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("create user: %w", err)
-	}
-
-	return user, nil
-}
-
-// Authenticate verifies credentials and returns the user.
+// Authenticate verifies credentials and returns the user. A user with an
+// empty PasswordHash always fails — Argon2id can't verify against empty —
+// so declared-but-unset accounts are non-loginable until set-password runs.
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (*repo.User, error) {
 	user, err := s.store.GetUserByEmail(ctx, email)
 	if err != nil {

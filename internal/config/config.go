@@ -27,13 +27,42 @@ type Config struct {
 }
 
 type GlobalConfig struct {
-	Path            string      `yaml:"-"`
-	Stacks          string      `yaml:"stacks_dir"`
-	RemoteStacksDir string      `yaml:"remote_stacks_dir"`
-	Cron            CronConfig  `yaml:"cron"`
-	HTTP            HTTPConfig  `yaml:"http"`
-	Paths           PathsConfig `yaml:"paths"`
-	Env             EnvConfig   `yaml:"env"`
+	Path            string        `yaml:"-"`
+	Stacks          string        `yaml:"stacks_dir"`
+	RemoteStacksDir string        `yaml:"remote_stacks_dir"`
+	Cron            CronConfig    `yaml:"cron"`
+	HTTP            HTTPConfig    `yaml:"http"`
+	Paths           PathsConfig   `yaml:"paths"`
+	Env             EnvConfig     `yaml:"env"`
+	Auth            AuthConfig    `yaml:"auth"`
+	Traefik         TraefikConfig `yaml:"traefik"`
+}
+
+// TraefikConfig captures the optional traefik integration knobs. When the
+// daemon is on the same docker network as traefik, leave APIURL empty —
+// the discoverer probes well-known URLs (http://traefik:8080,
+// http://localhost:8081). Set APIURL only for non-default ports or
+// multi-traefik setups.
+type TraefikConfig struct {
+	APIURL string `yaml:"api_url"`
+}
+
+// AuthConfig holds the declarative auth model. Currently only `users` is
+// consumed (ADR-0002 step #1). `roles` and per-user `stacks:` overrides will
+// land in step #4 (RBAC) — the YAML can already carry them; the Go struct
+// will grow additively.
+type AuthConfig struct {
+	Users []UserConfig `yaml:"users"`
+}
+
+// UserConfig is a declared user. Fields here are public-safe — no passwords,
+// no secrets. Password and TOTP state live only in SQLite and are preserved
+// across boots. A user removed from this slice gets deleted from the DB on
+// next sync (declarative reconciliation).
+type UserConfig struct {
+	Email string `yaml:"email"`
+	Name  string `yaml:"name"`
+	Role  string `yaml:"role"`
 }
 
 type CronConfig struct {
@@ -58,7 +87,11 @@ type EnvConfig struct {
 	Stacks map[string]map[string]string `yaml:"stacks"`
 }
 
-const defaultGlobalConfig = ".stackr.yaml"
+// defaultGlobalConfig is the visible (non-hidden) filename for the master
+// config. Operators look at this file constantly; hiding it behind a dot
+// hurts discoverability with no upside. Existing repos that still ship the
+// old `.stackr.yaml` can override via the STACKR_CONFIG_FILE env var.
+const defaultGlobalConfig = "stackr.yaml"
 
 func ResolveRepoRoot(override string) (string, error) {
 	override = strings.TrimSpace(override)

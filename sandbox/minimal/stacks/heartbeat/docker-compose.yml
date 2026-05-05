@@ -1,0 +1,40 @@
+# Heartbeat stack — exists to populate /cron and /cron/executions in the
+# sandbox UI. Both services print stackr's three layers of env magic:
+#
+#   - LOG_LEVEL              from env.global in stackr.yaml
+#   - GREETING               from env.stacks.heartbeat in stackr.yaml
+#   - STACKR_PROV_POOL_SSD   auto-provisioned per stack (path/<stack>)
+#
+# `profiles: [cron]` keeps the services from coming up under bare
+# `docker compose up`; the daemon's cron scheduler activates them
+# explicitly per tick (or via the "Run now" button on /cron).
+services:
+  every-minute:
+    image: alpine:latest
+    command:
+      - sh
+      - -c
+      - >
+        echo "heartbeat at $$(date -u +%FT%TZ)";
+        echo "  LOG_LEVEL=${LOG_LEVEL:-unset}";
+        echo "  GREETING=${GREETING:-unset}";
+        echo "  STACKR_PROV_POOL_SSD=${STACKR_PROV_POOL_SSD:-unset}"
+    labels:
+      stackr.cron.schedule: "* * * * *"
+    profiles:
+      - cron
+
+  manual-only:
+    image: alpine:latest
+    command:
+      - sh
+      - -c
+      - >
+        echo "manual job ran at $$(date -u +%FT%TZ)";
+        echo "  GREETING=${GREETING:-unset}"
+    labels:
+      # Empty schedule = registered but never auto-fired. Visible on /cron
+      # as "manual only"; clicking "Run now" triggers it via the daemon.
+      stackr.cron.schedule: ""
+    profiles:
+      - cron

@@ -1,0 +1,290 @@
+package stacks
+
+import (
+	"fmt"
+	"strconv"
+	"time"
+
+	"github.com/labstack/echo/v4"
+
+	"github.com/jamestiberiuskirk/stackr/internal/compose"
+	"github.com/jamestiberiuskirk/stackr/internal/cronjobs"
+	"github.com/jamestiberiuskirk/stackr/internal/repo"
+	"github.com/jamestiberiuskirk/stackr/internal/service"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components/form"
+)
+
+templ stackPage(c echo.Context, d stackPageData) {
+	@components.Layout(c, d.Info.Name) {
+		<main class="container">
+			<p class="text-muted"><a href="/">← Back to stacks</a></p>
+			<header class="page-header">
+				<div>
+					<h1>{ d.Info.Name }</h1>
+					<p>
+						<span class={ "status-pill", "status-" + d.Status.Aggregate() } data-ws-stack={ d.Info.Name }>
+							{ aggregateLabel(d.Status) }
+						</span>
+					</p>
+				</div>
+				@actionButtons(c, d.Info.Name)
+			</header>
+			<dl class="detail-grid">
+				<dt>Type</dt><dd>{ string(d.Info.Type) }</dd>
+				<dt>Compose</dt><dd><code>{ d.Info.PrimaryComposePath() }</code></dd>
+			</dl>
+
+			<section class="panel">
+				<header class="panel-header">
+					<h2>Services</h2>
+				</header>
+				if d.InspectErr != nil {
+					<div class="alert alert-error">{ d.InspectErr.Error() }</div>
+				} else if len(d.Inspection.Services) == 0 {
+					<p class="text-muted">No services defined.</p>
+				} else {
+					@servicesList(d.Inspection.Services, d.Status.Services)
+				}
+			</section>
+
+			<section class="panel">
+				<header class="panel-header">
+					<h2>Recent deployments</h2>
+					<a href={ templ.SafeURL("/deployments?stack=" + d.Info.Name) }>see all</a>
+				</header>
+				if d.DeployErr != nil {
+					<div class="alert alert-error">{ d.DeployErr.Error() }</div>
+				} else if len(d.Deployments) == 0 {
+					<p class="text-muted">No deployments yet.</p>
+				} else {
+					@deploymentsList(d.Deployments)
+				}
+			</section>
+
+			<section class="panel">
+				<header class="panel-header">
+					<h2>Cron jobs</h2>
+					<a href="/cron">see all</a>
+				</header>
+				if d.JobsErr != nil {
+					<div class="alert alert-error">{ d.JobsErr.Error() }</div>
+				} else if len(d.Jobs) == 0 {
+					<p class="text-muted">No cron jobs declared in this stack.</p>
+				} else {
+					@jobsList(d.Jobs)
+				}
+			</section>
+
+			<section class="panel">
+				<header class="panel-header">
+					<h2>Recent cron executions</h2>
+					<a href={ templ.SafeURL("/cron/executions?stack=" + d.Info.Name) }>see all</a>
+				</header>
+				if d.ExecErr != nil {
+					<div class="alert alert-error">{ d.ExecErr.Error() }</div>
+				} else if len(d.Executions) == 0 {
+					<p class="text-muted">No cron executions yet.</p>
+				} else {
+					@executionsList(d.Executions)
+				}
+			</section>
+		</main>
+	}
+}
+
+// servicesList renders the per-service table. The two arguments come
+// from different sources (compose-file declarations vs. live `docker
+// compose ps`) and are joined here by service name. A declared service
+// without a matching status entry shows as "missing" — never been
+// brought up.
+templ servicesList(services []compose.ServiceInfo, statuses []service.ServiceStatus) {
+	<table class="data-table">
+		<thead>
+			<tr><th>Service</th><th>State</th><th>Container</th><th>Image</th><th>Ports</th><th>Routes</th></tr>
+		</thead>
+		<tbody>
+			for _, s := range services {
+				{{ st := lookupStatus(statuses, s.Name) }}
+				<tr>
+					<td class="data-table-name">{ s.Name }</td>
+					<td>
+						<span class={ "status-pill", "status-" + serviceStateClass(st.State) } title={ st.Status }>
+							{ orDash(st.State) }
+						</span>
+					</td>
+					<td><code class="text-muted">{ orDash(st.Container) }</code></td>
+					<td><code>{ orDash(s.Image) }</code></td>
+					<td>
+						if len(s.Ports) == 0 {
+							<span class="text-muted">—</span>
+						} else {
+							for _, p := range s.Ports {
+								<code class="port-badge">{ p.Display }</code>
+							}
+						}
+					</td>
+					<td>
+						if len(s.Routes) == 0 {
+							<span class="text-muted">—</span>
+						} else {
+							for _, r := range s.Routes {
+								<a href={ templ.SafeURL(r.URL) } class="route-link" target="_blank" rel="noopener">{ r.URL }</a>
+							}
+						}
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+// actionButtons renders the four control buttons (Up / Down / Restart /
+// Update). Each is its own POST form with a CSRF token — separate forms
+// are simpler than one form + button names because hamr's CSRF middleware
+// validates per-submission.
+templ actionButtons(c echo.Context, name string) {
+	<div class="action-buttons">
+		@actionForm(c, name, service.ActionUp, "Up", "btn-primary")
+		@actionForm(c, name, service.ActionDown, "Down", "btn-secondary")
+		@actionForm(c, name, service.ActionRestart, "Restart", "btn-secondary")
+		@actionForm(c, name, service.ActionUpdate, "Update", "btn-secondary")
+	</div>
+}
+
+templ actionForm(c echo.Context, stack, action, label, btnClass string) {
+	<form method="POST" action={ templ.SafeURL("/stacks/" + stack + "/" + action) } class="action-form">
+		@form.CSRFField(c)
+		<button type="submit" class={ "btn", btnClass }>{ label }</button>
+	</form>
+}
+
+// lookupStatus picks the live status for a declared service by name —
+// linear scan because the slice is short (services per stack typically
+// single digits).
+func lookupStatus(all []service.ServiceStatus, name string) service.ServiceStatus {
+	for _, s := range all {
+		if s.Name == name {
+			return s
+		}
+	}
+	return service.ServiceStatus{Name: name, State: service.ServiceStateMissing}
+}
+
+// serviceStateClass maps docker container states to the CSS modifier
+// (running → success, exited/dead → failed, restarting → running, etc.)
+// so we can reuse the existing status-success / status-failed pills.
+func serviceStateClass(state string) string {
+	switch state {
+	case service.ServiceStateRunning:
+		return "success"
+	case service.ServiceStateRestarting:
+		return "running"
+	case service.ServiceStateMissing:
+		return "missing"
+	case service.ServiceStateExited, service.ServiceStateDead:
+		return "failed"
+	}
+	return "running"
+}
+
+// aggregateLabel mirrors home.templ's statusLabel — kept duplicated so
+// the stacks package stays free of cross-handler imports.
+func aggregateLabel(s service.StackStatus) string {
+	if s.TotalCount() == 0 {
+		return s.Aggregate()
+	}
+	return fmt.Sprintf("%s %d/%d", s.Aggregate(), s.RunningCount(), s.TotalCount())
+}
+
+templ deploymentsList(rows []repo.Deployment) {
+	<table class="stacks-table">
+		<thead>
+			<tr><th>Started</th><th>Tag</th><th>Status</th><th>Trigger</th><th>Duration</th></tr>
+		</thead>
+		<tbody>
+			for _, d := range rows {
+				<tr>
+					<td><a href={ templ.SafeURL("/deployments/" + d.ID) }>{ formatTime(d.StartedAt) }</a></td>
+					<td><code>{ orDash(d.Tag) }</code></td>
+					<td><span class={ "status-pill", "status-" + d.Status }>{ d.Status }</span></td>
+					<td>{ d.Trigger }</td>
+					<td>{ formatDuration(d.StartedAt, d.FinishedAt) }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+templ jobsList(jobs []cronjobs.JobInfo) {
+	<table class="stacks-table">
+		<thead>
+			<tr><th>Service</th><th>Schedule</th><th>Profile</th><th>Run on deploy</th></tr>
+		</thead>
+		<tbody>
+			for _, j := range jobs {
+				<tr>
+					<td>{ j.Service }</td>
+					<td><code>{ scheduleOrManual(j.Schedule) }</code></td>
+					<td>{ orDash(j.Profile) }</td>
+					<td>{ yesNo(j.RunOnDeploy) }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+templ executionsList(rows []repo.CronExecution) {
+	<table class="stacks-table">
+		<thead>
+			<tr><th>Started</th><th>Service</th><th>Status</th><th>Trigger</th><th>Duration</th></tr>
+		</thead>
+		<tbody>
+			for _, e := range rows {
+				<tr>
+					<td><a href={ templ.SafeURL("/cron/executions/" + e.ID) }>{ formatTime(e.StartedAt) }</a></td>
+					<td>{ e.Service }</td>
+					<td><span class={ "status-pill", "status-" + e.Status }>{ e.Status }</span></td>
+					<td>{ e.Trigger }</td>
+					<td>{ formatDuration(e.StartedAt, e.FinishedAt) }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+func formatTime(t time.Time) string {
+	return t.Format(time.RFC3339)
+}
+
+func formatDuration(start time.Time, finish *time.Time) string {
+	if finish == nil {
+		return "—"
+	}
+	d := finish.Sub(start).Round(time.Millisecond)
+	if d < time.Second {
+		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
+	}
+	return d.String()
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
+
+func scheduleOrManual(schedule string) string {
+	if schedule == "" {
+		return "manual only"
+	}
+	return schedule
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}

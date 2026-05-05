@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/FyrmForge/hamr v0.20.1
 	github.com/a-h/templ v0.3.1001
+	github.com/coder/websocket v1.8.14
 	github.com/docker/docker v28.5.1+incompatible
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/glebarez/sqlite v1.11.0
@@ -14,6 +15,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
+	golang.org/x/term v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.12
 )

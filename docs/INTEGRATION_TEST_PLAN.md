@@ -37,7 +37,7 @@ Shared test helpers used across all integration test files.
 ### Functions
 
 - `RequireDockerAvailable(t *testing.T)` -- calls `docker info`, skips test if Docker unavailable
-- `SetupTestRepo(t *testing.T, opts ...RepoOption) string` -- creates temp dir with `.stackr.yaml`, `.env`, `stacks/<name>/docker-compose.yml`, configurable via functional options (stack name, compose content, env vars, pool paths, global config, etc.)
+- `SetupTestRepo(t *testing.T, opts ...RepoOption) string` -- creates temp dir with `stackr.yaml`, `.env`, `stacks/<name>/docker-compose.yml`, configurable via functional options (stack name, compose content, env vars, pool paths, global config, etc.)
 - `MinimalComposeYAML(serviceName, image string) string` -- returns a minimal compose YAML string
 - `CleanupComposeProject(t *testing.T, projectDir string)` -- runs `docker compose down -v --remove-orphans` in `t.Cleanup()`
 
@@ -75,7 +75,7 @@ Build tag: `//go:build integration`
 
 Full deploy lifecycle -- `Manager.Run()` with update action starts a compose stack, tear-down stops it.
 
-1. Create temp repo with `.stackr.yaml`, `.env`, `stacks/testapp/docker-compose.yml` (nginx service)
+1. Create temp repo with `stackr.yaml`, `.env`, `stacks/testapp/docker-compose.yml` (nginx service)
 2. Build `config.Config` pointing at temp repo
 3. Create `stackcmd.Manager` via `NewManagerWithWriters()` (capture stdout/stderr)
 4. Call `Manager.Run()` with `Options{Stacks: ["testapp"], Update: true}`
@@ -101,7 +101,7 @@ Full deploy lifecycle -- `Manager.Run()` with update action starts a compose sta
 - Deploy only stackA, verify stackB vars don't leak into stackA
 
 **1.2d: `GlobalVarsSharedAcrossStacks`**
-- `.stackr.yaml` has `global_env: {SHARED_KEY: shared_value}`
+- `stackr.yaml` has `global_env: {SHARED_KEY: shared_value}`
 - Both stacks reference `${SHARED_KEY}`, verify both receive it
 
 **1.2e: `MissingVarFailsValidation`**
@@ -128,7 +128,7 @@ Full deploy lifecycle -- `Manager.Run()` with update action starts a compose sta
 - Verify legacy vars resolve to same paths as `STACKR_PROV_POOL_*`
 
 **1.2j: `CustomPathVarsFromConfig`**
-- `.stackr.yaml` has `paths: {custom: {MY_DATA_DIR: /opt/data, MY_CACHE_DIR: ./cache}}`
+- `stackr.yaml` has `paths: {custom: {MY_DATA_DIR: /opt/data, MY_CACHE_DIR: ./cache}}`
 - Compose references `${MY_DATA_DIR}` and `${MY_CACHE_DIR}`
 - Verify values passed through correctly
 

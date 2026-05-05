@@ -1,0 +1,95 @@
+package routes
+
+import (
+	"strings"
+
+	"github.com/labstack/echo/v4"
+
+	"github.com/jamestiberiuskirk/stackr/internal/service"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+)
+
+templ routesPage(c echo.Context, result service.TraefikRouters, loadErr error) {
+	@components.Layout(c, "Routes") {
+		<main class="container">
+			<header class="page-header">
+				<div>
+					<h1>Routes</h1>
+					if result.APIURL != "" {
+						<p class="text-muted">Live from traefik at <code>{ result.APIURL }</code></p>
+					}
+				</div>
+			</header>
+			if result.APIURL == "" {
+				<div class="empty-state">
+					<p><strong>Traefik not detected.</strong></p>
+					<p class="text-muted">
+						The daemon probed <code>http://traefik:8080</code> and
+						<code>http://localhost:8081</code> with no response.
+						Check that traefik is running, or set
+						<code>traefik.api_url</code> in stackr.yaml or
+						<code>STACKR_TRAEFIK_API_URL</code> in the environment.
+					</p>
+				</div>
+			} else if loadErr != nil {
+				<div class="alert alert-error">
+					{ "Failed to fetch routers from " + result.APIURL + ": " + loadErr.Error() }
+				</div>
+			} else if len(result.Routers) == 0 {
+				<div class="empty-state">
+					<p>Traefik is reachable, but no routers are defined.</p>
+				</div>
+			} else {
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>URLs</th>
+							<th>Rule</th>
+							<th>Service</th>
+							<th>Provider</th>
+							<th>Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range result.Routers {
+							<tr>
+								<td class="data-table-name">{ r.Name }</td>
+								<td>
+									if urls := r.URLs(); len(urls) == 0 {
+										<span class="text-muted">—</span>
+									} else {
+										for _, u := range urls {
+											<a href={ templ.SafeURL(u) } class="route-link" target="_blank" rel="noopener">{ u }</a>
+										}
+									}
+								</td>
+								<td><code>{ r.Rule }</code></td>
+								<td><code>{ r.Service }</code></td>
+								<td>
+									<span class={ "type-pill", "type-" + r.Provider }>{ r.Provider }</span>
+								</td>
+								<td>
+									<span class={ "status-pill", "status-" + statusClass(r.Status) }>{ r.Status }</span>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</main>
+	}
+}
+
+// statusClass picks the CSS modifier for a router status. Traefik returns
+// values like "enabled" / "disabled" / "warning" — map "enabled" to
+// success, "disabled" to failed, anything else stays as "running".
+func statusClass(s string) string {
+	switch strings.ToLower(s) {
+	case "enabled":
+		return "success"
+	case "disabled":
+		return "failed"
+	}
+	return "running"
+}

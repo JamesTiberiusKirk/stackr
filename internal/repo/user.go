@@ -10,6 +10,8 @@ type User struct {
 	Name         string    `db:"name"`
 	Role         string    `db:"role"`
 	Active       bool      `db:"active"`
+	TOTPSecret   string    `db:"totp_secret"`
+	TOTPEnabled  bool      `db:"totp_enabled"`
 	CreatedAt    time.Time `db:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at"`
 }

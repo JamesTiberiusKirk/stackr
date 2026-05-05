@@ -1,0 +1,113 @@
+package executions
+
+import (
+	"strconv"
+	"time"
+
+	"github.com/labstack/echo/v4"
+
+	"github.com/jamestiberiuskirk/stackr/internal/repo"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+)
+
+templ executionsPage(c echo.Context, rows []repo.CronExecution, filter repo.CronExecutionFilter, loadErr error) {
+	@components.Layout(c, "Cron Executions") {
+		<main class="container">
+			<h1>Cron Executions</h1>
+			if filter.Stack != "" {
+				<p class="text-muted">Filtered to stack <code>{ filter.Stack }</code> · <a href="/cron/executions">show all</a></p>
+			}
+			if loadErr != nil {
+				<div class="alert alert-error">{ "Failed to load executions: " + loadErr.Error() }</div>
+			} else if len(rows) == 0 {
+				<p>No cron executions yet. <a href="/cron">View configured jobs</a>.</p>
+			} else {
+				<table class="stacks-table">
+					<thead>
+						<tr>
+							<th>Started</th>
+							<th>Stack</th>
+							<th>Service</th>
+							<th>Status</th>
+							<th>Trigger</th>
+							<th>Duration</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, e := range rows {
+							<tr>
+								<td><a href={ templ.SafeURL("/cron/executions/" + e.ID) }>{ formatTime(e.StartedAt) }</a></td>
+								<td>{ e.Stack }</td>
+								<td>{ e.Service }</td>
+								<td><span class={ "status-pill", "status-" + e.Status }>{ e.Status }</span></td>
+								<td>{ e.Trigger }</td>
+								<td>{ formatDuration(e.StartedAt, e.FinishedAt) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</main>
+	}
+}
+
+templ executionDetailPage(c echo.Context, e *repo.CronExecution) {
+	@components.Layout(c, "Cron Execution") {
+		<main class="container">
+			<p class="text-muted"><a href="/cron/executions">← Back to executions</a></p>
+			<h1>{ e.Stack } / { e.Service }</h1>
+			<dl class="detail-grid">
+				<dt>Status</dt><dd><span class={ "status-pill", "status-" + e.Status }>{ e.Status }</span></dd>
+				<dt>Trigger</dt><dd>{ e.Trigger }</dd>
+				<dt>Schedule</dt><dd><code>{ orDash(e.Schedule) }</code></dd>
+				<dt>Container</dt><dd><code>{ orDash(e.Container) }</code></dd>
+				<dt>Started</dt><dd>{ formatTime(e.StartedAt) }</dd>
+				<dt>Finished</dt><dd>{ formatTimePtr(e.FinishedAt) }</dd>
+				<dt>Duration</dt><dd>{ formatDuration(e.StartedAt, e.FinishedAt) }</dd>
+			</dl>
+			if e.Error != "" {
+				<h2>Error</h2>
+				<pre class="log-block log-error">{ e.Error }</pre>
+			}
+			if e.Stdout != "" {
+				<h2>Stdout</h2>
+				<pre class="log-block">{ e.Stdout }</pre>
+			} else {
+				<p class="text-muted">No stdout captured.</p>
+			}
+		</main>
+	}
+}
+
+// formatTime renders timestamps as RFC3339 — unambiguous across locales,
+// easy to copy/paste into queries. Operators see UTC offsets explicitly.
+func formatTime(t time.Time) string {
+	return t.Format(time.RFC3339)
+}
+
+func formatTimePtr(t *time.Time) string {
+	if t == nil {
+		return "—"
+	}
+	return formatTime(*t)
+}
+
+// formatDuration shows wall-clock time between StartedAt and FinishedAt.
+// Running rows (FinishedAt == nil) get an em-dash.
+func formatDuration(start time.Time, finish *time.Time) string {
+	if finish == nil {
+		return "—"
+	}
+	d := finish.Sub(start).Round(time.Millisecond)
+	if d < time.Second {
+		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
+	}
+	return d.String()
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}

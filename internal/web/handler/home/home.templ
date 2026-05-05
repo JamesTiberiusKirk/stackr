@@ -1,46 +1,124 @@
 package home
 
 import (
+	"fmt"
+	"path/filepath"
+
 	"github.com/labstack/echo/v4"
-	"github.com/jamestiberiuskirk/stackr/internal/stackcmd"
+	"github.com/jamestiberiuskirk/stackr/internal/service"
 	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components/form"
 )
 
-templ homePage(c echo.Context, stacks []stackcmd.StackInfo, loadErr error) {
+templ homePage(c echo.Context, repoRoot string, rows []stackRow, loadErr error) {
 	@components.Layout(c, "Stacks") {
 		<main class="container">
 			<header class="page-header">
-				<h1>Stacks</h1>
-				<p class="text-muted">Configured stacks discovered under the stackr stacks directory.</p>
+				<div>
+					<h1>Stacks</h1>
+					<p class="text-muted">Repo <code>{ repoRoot }</code></p>
+				</div>
 			</header>
 			if loadErr != nil {
-				<div class="alert alert-error">
-					{ "Failed to load stacks: " + loadErr.Error() }
-				</div>
-			} else if len(stacks) == 0 {
+				<div class="alert alert-error">{ "Failed to load stacks: " + loadErr.Error() }</div>
+			} else if len(rows) == 0 {
 				<div class="empty-state">
 					<p>No stacks discovered. Add a stack directory under your stacks dir and refresh.</p>
 				</div>
 			} else {
-				<table class="stacks-table">
-					<thead>
-						<tr>
-							<th>Name</th>
-							<th>Type</th>
-							<th>Compose</th>
-						</tr>
-					</thead>
-					<tbody>
-						for _, s := range stacks {
-							<tr>
-								<td>{ s.Name }</td>
-								<td>{ string(s.Type) }</td>
-								<td>{ s.PrimaryComposePath() }</td>
-							</tr>
-						}
-					</tbody>
-				</table>
+				@stacksForm(c, repoRoot, rows)
 			}
 		</main>
 	}
+}
+
+// stacksForm wraps the table in a single POST form so the toolbar
+// buttons (Up/Down/Restart/Update) submit the checked rows under a
+// `stacks=NAME` repeated parameter and the chosen verb under `action`.
+//
+// Inline JS for the select-all checkbox is gated by the page CSP that
+// already permits 'unsafe-inline' for scripts. Pure HTML can't drive
+// "tick all checkboxes in a sibling table" without it.
+templ stacksForm(c echo.Context, repoRoot string, rows []stackRow) {
+	<form method="POST" action="/stacks/bulk" class="bulk-form">
+		@form.CSRFField(c)
+		<div class="bulk-toolbar">
+			<span class="bulk-toolbar-label">Run on selected:</span>
+			<button type="submit" name="action" value="up" class="btn btn-primary">Up</button>
+			<button type="submit" name="action" value="down" class="btn btn-secondary">Down</button>
+			<button type="submit" name="action" value="restart" class="btn btn-secondary">Restart</button>
+			<button type="submit" name="action" value="update" class="btn btn-secondary">Update</button>
+		</div>
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th class="data-table-check">
+						<input type="checkbox" id="select-all-stacks" onclick="document.querySelectorAll('input[name=stacks]').forEach(function(c){c.checked=document.getElementById('select-all-stacks').checked});"/>
+					</th>
+					<th>Name</th>
+					<th>Status</th>
+					<th>Type</th>
+					<th>Compose</th>
+					<th>Routes</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, r := range rows {
+					<tr>
+						<td class="data-table-check">
+							<input type="checkbox" name="stacks" value={ r.Stack.Name }/>
+						</td>
+						<td class="data-table-name"><a href={ templ.SafeURL("/stacks/" + r.Stack.Name) }>{ r.Stack.Name }</a></td>
+						<td>
+							<span class={ "status-pill", "status-" + r.Status.Aggregate() } data-ws-stack={ r.Stack.Name }>
+								{ statusLabel(r.Status) }
+							</span>
+						</td>
+						<td>
+							<span class={ "type-pill", "type-" + string(r.Stack.Type) }>{ string(r.Stack.Type) }</span>
+						</td>
+						<td><code class="text-muted">{ relPath(repoRoot, r.Stack.PrimaryComposePath()) }</code></td>
+						<td>
+							if len(r.Routes) == 0 {
+								<span class="text-muted">—</span>
+							} else {
+								for _, route := range r.Routes {
+									<a href={ templ.SafeURL(route.URL) } class="route-link" target="_blank" rel="noopener">{ route.Host }</a>
+								}
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</form>
+}
+
+// statusLabel renders the per-stack status pill body — the aggregate
+// word ("running" / "partial" / "stopped") followed by a fraction so
+// the operator can tell "3/3 running" from "1/3 running" without
+// drilling into the detail page.
+func statusLabel(s service.StackStatus) string {
+	if s.TotalCount() == 0 {
+		return s.Aggregate()
+	}
+	return fmt.Sprintf("%s %d/%d", s.Aggregate(), s.RunningCount(), s.TotalCount())
+}
+
+// relPath returns the compose path relative to the repo root for compact
+// display ("stacks/app/docker-compose.yml" instead of an absolute path).
+// Falls back to the absolute path if it lies outside the repo root or if
+// filepath.Rel errors — better to show too much than to show nothing.
+func relPath(root, full string) string {
+	if full == "" {
+		return "—"
+	}
+	if root == "" {
+		return full
+	}
+	rel, err := filepath.Rel(root, full)
+	if err != nil || rel == "" {
+		return full
+	}
+	return rel
 }

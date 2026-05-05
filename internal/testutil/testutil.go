@@ -258,7 +258,7 @@ func WithEnvContent(content string) RepoOption {
 	return func(c *repoConfig) { c.envContent = content }
 }
 
-// WithYAMLConfig sets the .stackr.yaml content.
+// WithYAMLConfig sets the stackr.yaml content.
 func WithYAMLConfig(content string) RepoOption {
 	return func(c *repoConfig) { c.yamlContent = content }
 }
@@ -329,10 +329,10 @@ func SetupTestRepo(t *testing.T, opts ...RepoOption) (string, string) {
 		0o644,
 	))
 
-	// Write .stackr.yaml if provided
+	// Write stackr.yaml if provided
 	if rc.yamlContent != "" {
 		require.NoError(t, os.WriteFile(
-			filepath.Join(root, ".stackr.yaml"),
+			filepath.Join(root, "stackr.yaml"),
 			[]byte(rc.yamlContent),
 			0o644,
 		))
@@ -359,7 +359,7 @@ func BuildConfigDirect(root string) config.Config {
 		EnvFile:      filepath.Join(root, ".env"),
 		StacksDir:    filepath.Join(root, "stacks"),
 		Global: config.GlobalConfig{
-			Path:   filepath.Join(root, ".stackr.yaml"),
+			Path:   filepath.Join(root, "stackr.yaml"),
 			Stacks: filepath.Join(root, "stacks"),
 			HTTP:   config.HTTPConfig{BaseDomain: "localhost"},
 			Paths: config.PathsConfig{

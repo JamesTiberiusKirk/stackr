@@ -3,6 +3,9 @@ package components
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/FyrmForge/hamr/pkg/middleware"
+
+	"github.com/jamestiberiuskirk/stackr/internal/auth"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components/form"
 )
 
 templ Layout(c echo.Context, title string) {
@@ -11,19 +14,44 @@ templ Layout(c echo.Context, title string) {
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-		<title>{ title } - daemon</title>
+		<title>{ title } - stackr</title>
 		<link rel="stylesheet" href={ StaticURL("css/base/variables.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/base/reset.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/base/utilities.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/components/buttons.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/components/forms.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/components/alerts.css") }/>
+		<link rel="stylesheet" href={ StaticURL("css/components/tables.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/layout/header.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/layout/footer.css") }/>
 		<link rel="stylesheet" href={ StaticURL("css/pages/home.css") }/>
 	</head>
 	<body>
+		<div id="ws-banners" class="ws-banners"></div>
 		if c != nil {
+			if user := auth.CurrentUser(c); user != nil {
+				<header class="header">
+					<div class="container">
+						<a href="/" class="header-logo">stackr</a>
+						<nav>
+							<ul class="header-nav">
+								<li><a href="/">Stacks</a></li>
+								<li><a href="/deployments">Deployments</a></li>
+								<li><a href="/cron">Cron</a></li>
+								<li><a href="/routes">Routes</a></li>
+								<li><a href="/env">Env</a></li>
+								<li class="header-nav-divider">{ user.Name }</li>
+								<li>
+									<form method="POST" action="/logout">
+										@form.CSRFField(c)
+										<button type="submit" class="btn btn-link">Log out</button>
+									</form>
+								</li>
+							</ul>
+						</nav>
+					</div>
+				</header>
+			}
 			if flash := middleware.GetFlash(c); flash != nil {
 				<div class="container">
 					<div class={ "alert", FlashAlertClass(flash.Type) }>
@@ -49,6 +77,71 @@ templ Layout(c echo.Context, title string) {
 				var csrfToken = document.querySelector('input[name="csrf_token"]');
 				if (csrfToken) evt.detail.headers['X-CSRF-Token'] = csrfToken.value;
 			});
+
+			// Realtime client. Subscribes to:
+			//   - the global "events" topic for the toast banner
+			//   - one "stack:<name>" topic per <span data-ws-stack> on
+			//     the current page so live status flips in place.
+			// Reconnects with backoff if the daemon restarts.
+			(function() {
+				if (!document.querySelector('.header')) return;
+
+				// Discover stack pills the page already rendered. The
+				// server pre-renders the initial pill state, then we
+				// keep it fresh from /events without a refresh.
+				var stackTopics = Array.prototype.map.call(
+					document.querySelectorAll('[data-ws-stack]'),
+					function(el) { return 'stack:' + el.getAttribute('data-ws-stack'); }
+				);
+				var topics = ['events'].concat(stackTopics);
+				var url = (location.protocol === 'https:' ? 'wss:' : 'ws:')
+					+ '//' + location.host + '/ws?'
+					+ topics.map(function(t) { return 'topic=' + encodeURIComponent(t); }).join('&');
+
+				var backoff = 1000;
+				function connect() {
+					var ws = new WebSocket(url);
+					ws.onopen = function() { backoff = 1000; };
+					ws.onmessage = function(ev) {
+						var msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }
+						if (!msg || !msg.type) return;
+						if (msg.type.indexOf('job.') === 0) renderJobBanner(msg);
+						else if (msg.type === 'stack.status') applyStackStatus(msg);
+					};
+					ws.onclose = function() {
+						setTimeout(connect, backoff);
+						backoff = Math.min(backoff * 2, 30000);
+					};
+				}
+
+				function renderJobBanner(msg) {
+					var d = msg.data || {};
+					var status = d.status || msg.type.replace('job.', '');
+					var banner = document.createElement('div');
+					banner.className = 'ws-banner ws-banner-' + status;
+					banner.textContent = (d.kind || '?') + ' · ' + (d.subject || '?')
+						+ ' — ' + status + (d.message ? ': ' + d.message : '');
+					document.getElementById('ws-banners').prepend(banner);
+					if (status === 'success' || status === 'failed') {
+						setTimeout(function() { banner.remove(); }, 6000);
+					}
+				}
+
+				function applyStackStatus(msg) {
+					var d = msg.data || {};
+					var pills = document.querySelectorAll('[data-ws-stack="' + d.stack + '"]');
+					if (!pills.length) return;
+					var label = d.total > 0
+						? d.aggregate + ' ' + d.running + '/' + d.total
+						: d.aggregate;
+					pills.forEach(function(pill) {
+						pill.className = 'status-pill status-' + d.aggregate;
+						pill.textContent = label;
+					});
+				}
+
+				connect();
+			})();
 		</script>
 	</body>
 	</html>

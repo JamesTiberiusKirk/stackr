@@ -903,7 +903,7 @@ func (m *Manager) buildStackEnv(ctx context.Context, stack string) (map[string]s
 		}
 	}
 
-	// Add stack-specific env vars from .stackr.yaml (highest priority, overrides all)
+	// Add stack-specific env vars from stackr.yaml (highest priority, overrides all)
 	if stackEnv := m.cfg.Global.Env.Stacks[stack]; len(stackEnv) > 0 {
 		for k, v := range stackEnv {
 			env[k] = v

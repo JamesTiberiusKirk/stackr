@@ -11,6 +11,9 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/FyrmForge/hamr/pkg/middleware"
 	"github.com/labstack/echo/v4"
+
+	"github.com/jamestiberiuskirk/stackr/internal/auth"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components/form"
 )
 
 func Layout(c echo.Context, title string) templ.Component {
@@ -41,20 +44,20 @@ func Layout(c echo.Context, title string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 14, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 17, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - daemon</title><link rel=\"stylesheet\" href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - stackr</title><link rel=\"stylesheet\" href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 templ.SafeURL
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/base/variables.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 15, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 18, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -67,7 +70,7 @@ func Layout(c echo.Context, title string) templ.Component {
 		var templ_7745c5c3_Var4 templ.SafeURL
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/base/reset.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 16, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 19, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -80,7 +83,7 @@ func Layout(c echo.Context, title string) templ.Component {
 		var templ_7745c5c3_Var5 templ.SafeURL
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/base/utilities.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 17, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 20, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -93,7 +96,7 @@ func Layout(c echo.Context, title string) templ.Component {
 		var templ_7745c5c3_Var6 templ.SafeURL
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/components/buttons.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 18, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 21, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -106,7 +109,7 @@ func Layout(c echo.Context, title string) templ.Component {
 		var templ_7745c5c3_Var7 templ.SafeURL
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/components/forms.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 19, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 22, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -119,7 +122,7 @@ func Layout(c echo.Context, title string) templ.Component {
 		var templ_7745c5c3_Var8 templ.SafeURL
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/components/alerts.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 20, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 23, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -130,9 +133,9 @@ func Layout(c echo.Context, title string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 templ.SafeURL
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/layout/header.css"))
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/components/tables.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 21, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 24, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -143,9 +146,9 @@ func Layout(c echo.Context, title string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 templ.SafeURL
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/layout/footer.css"))
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/layout/header.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 22, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 25, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -156,56 +159,100 @@ func Layout(c echo.Context, title string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 templ.SafeURL
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/pages/home.css"))
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/layout/footer.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 23, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 26, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"></head><body>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"><link rel=\"stylesheet\" href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var12 templ.SafeURL
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(StaticURL("css/pages/home.css"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 27, Col: 63}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"></head><body><div id=\"ws-banners\" class=\"ws-banners\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if c != nil {
-			if flash := middleware.GetFlash(c); flash != nil {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"container\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var12 = []any{"alert", FlashAlertClass(flash.Type)}
-				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var12...)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"")
+			if user := auth.CurrentUser(c); user != nil {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<header class=\"header\"><div class=\"container\"><a href=\"/\" class=\"header-logo\">stackr</a><nav><ul class=\"header-nav\"><li><a href=\"/\">Stacks</a></li><li><a href=\"/deployments\">Deployments</a></li><li><a href=\"/cron\">Cron</a></li><li><a href=\"/routes\">Routes</a></li><li><a href=\"/env\">Env</a></li><li class=\"header-nav-divider\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var13 string
-				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var12).String())
+				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(user.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 1, Col: 0}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 43, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</li><li><form method=\"POST\" action=\"/logout\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(flash.Message)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 30, Col: 21}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+				templ_7745c5c3_Err = form.CSRFField(c).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<button type=\"submit\" class=\"btn btn-link\">Log out</button></form></li></ul></nav></div></header>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, " ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if flash := middleware.GetFlash(c); flash != nil {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"container\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var14 = []any{"alert", FlashAlertClass(flash.Type)}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var14...)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var15 string
+				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var14).String())
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 1, Col: 0}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var16 string
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(flash.Message)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 58, Col: 21}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -215,33 +262,33 @@ func Layout(c echo.Context, title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<script src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<script src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(StaticURL("js/htmx.min.js"))
+		var templ_7745c5c3_Var17 string
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(StaticURL("js/htmx.min.js"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 37, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 65, Col: 43}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"></script><script src=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(StaticURL("js/main.js"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 38, Col: 39}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\"></script><script src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\"></script><script>\n\t\t\thtmx.config.responseHandling = [\n\t\t\t\t{code:\"204\", swap: false},\n\t\t\t\t{code:\"[23]..\", swap: true},\n\t\t\t\t{code:\"400\", swap: true, error: false},\n\t\t\t\t{code:\"422\", swap: true, error: false},\n\t\t\t\t{code:\"429\", swap: true, error: false},\n\t\t\t\t{code:\"[45]..\", swap: false, error: true}\n\t\t\t];\n\t\t\tdocument.addEventListener('htmx:configRequest', function(evt) {\n\t\t\t\tvar csrfToken = document.querySelector('input[name=\"csrf_token\"]');\n\t\t\t\tif (csrfToken) evt.detail.headers['X-CSRF-Token'] = csrfToken.value;\n\t\t\t});\n\t\t</script></body></html>")
+		var templ_7745c5c3_Var18 string
+		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(StaticURL("js/main.js"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/layout.templ`, Line: 66, Col: 39}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\"></script><script>\n\t\t\thtmx.config.responseHandling = [\n\t\t\t\t{code:\"204\", swap: false},\n\t\t\t\t{code:\"[23]..\", swap: true},\n\t\t\t\t{code:\"400\", swap: true, error: false},\n\t\t\t\t{code:\"422\", swap: true, error: false},\n\t\t\t\t{code:\"429\", swap: true, error: false},\n\t\t\t\t{code:\"[45]..\", swap: false, error: true}\n\t\t\t];\n\t\t\tdocument.addEventListener('htmx:configRequest', function(evt) {\n\t\t\t\tvar csrfToken = document.querySelector('input[name=\"csrf_token\"]');\n\t\t\t\tif (csrfToken) evt.detail.headers['X-CSRF-Token'] = csrfToken.value;\n\t\t\t});\n\n\t\t\t// Realtime client. Subscribes to:\n\t\t\t//   - the global \"events\" topic for the toast banner\n\t\t\t//   - one \"stack:<name>\" topic per <span data-ws-stack> on\n\t\t\t//     the current page so live status flips in place.\n\t\t\t// Reconnects with backoff if the daemon restarts.\n\t\t\t(function() {\n\t\t\t\tif (!document.querySelector('.header')) return;\n\n\t\t\t\t// Discover stack pills the page already rendered. The\n\t\t\t\t// server pre-renders the initial pill state, then we\n\t\t\t\t// keep it fresh from /events without a refresh.\n\t\t\t\tvar stackTopics = Array.prototype.map.call(\n\t\t\t\t\tdocument.querySelectorAll('[data-ws-stack]'),\n\t\t\t\t\tfunction(el) { return 'stack:' + el.getAttribute('data-ws-stack'); }\n\t\t\t\t);\n\t\t\t\tvar topics = ['events'].concat(stackTopics);\n\t\t\t\tvar url = (location.protocol === 'https:' ? 'wss:' : 'ws:')\n\t\t\t\t\t+ '//' + location.host + '/ws?'\n\t\t\t\t\t+ topics.map(function(t) { return 'topic=' + encodeURIComponent(t); }).join('&');\n\n\t\t\t\tvar backoff = 1000;\n\t\t\t\tfunction connect() {\n\t\t\t\t\tvar ws = new WebSocket(url);\n\t\t\t\t\tws.onopen = function() { backoff = 1000; };\n\t\t\t\t\tws.onmessage = function(ev) {\n\t\t\t\t\t\tvar msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }\n\t\t\t\t\t\tif (!msg || !msg.type) return;\n\t\t\t\t\t\tif (msg.type.indexOf('job.') === 0) renderJobBanner(msg);\n\t\t\t\t\t\telse if (msg.type === 'stack.status') applyStackStatus(msg);\n\t\t\t\t\t};\n\t\t\t\t\tws.onclose = function() {\n\t\t\t\t\t\tsetTimeout(connect, backoff);\n\t\t\t\t\t\tbackoff = Math.min(backoff * 2, 30000);\n\t\t\t\t\t};\n\t\t\t\t}\n\n\t\t\t\tfunction renderJobBanner(msg) {\n\t\t\t\t\tvar d = msg.data || {};\n\t\t\t\t\tvar status = d.status || msg.type.replace('job.', '');\n\t\t\t\t\tvar banner = document.createElement('div');\n\t\t\t\t\tbanner.className = 'ws-banner ws-banner-' + status;\n\t\t\t\t\tbanner.textContent = (d.kind || '?') + ' · ' + (d.subject || '?')\n\t\t\t\t\t\t+ ' — ' + status + (d.message ? ': ' + d.message : '');\n\t\t\t\t\tdocument.getElementById('ws-banners').prepend(banner);\n\t\t\t\t\tif (status === 'success' || status === 'failed') {\n\t\t\t\t\t\tsetTimeout(function() { banner.remove(); }, 6000);\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction applyStackStatus(msg) {\n\t\t\t\t\tvar d = msg.data || {};\n\t\t\t\t\tvar pills = document.querySelectorAll('[data-ws-stack=\"' + d.stack + '\"]');\n\t\t\t\t\tif (!pills.length) return;\n\t\t\t\t\tvar label = d.total > 0\n\t\t\t\t\t\t? d.aggregate + ' ' + d.running + '/' + d.total\n\t\t\t\t\t\t: d.aggregate;\n\t\t\t\t\tpills.forEach(function(pill) {\n\t\t\t\t\t\tpill.className = 'status-pill status-' + d.aggregate;\n\t\t\t\t\t\tpill.textContent = label;\n\t\t\t\t\t});\n\t\t\t\t}\n\n\t\t\t\tconnect();\n\t\t\t})();\n\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

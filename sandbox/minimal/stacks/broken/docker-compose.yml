@@ -1,0 +1,16 @@
+# Intentionally-broken stack — exists to demonstrate stackr's missing-var
+# detection. The compose references ${MISSING_SECRET}, which is not in
+# .env. When deployed, stackr refuses with "missing required environment
+# variables" and writes a failed deployment row.
+#
+# To "fix": add `MISSING_SECRET=<anything>` to .env (via /env or directly)
+# and re-run.
+services:
+  needs-a-secret:
+    image: alpine:latest
+    command:
+      - sh
+      - -c
+      - 'echo "secret = $${MISSING_SECRET}"'
+    environment:
+      MISSING_SECRET: "${MISSING_SECRET}"

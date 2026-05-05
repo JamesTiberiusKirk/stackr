@@ -46,8 +46,10 @@ Flags:
       --tag <tag>    Update .env with image tag before deployment (requires update command)
 
 Commands (can be combined):
-  init           Initialize a new stackr project with config and example stacks
-  all            Run on all stacks
+  init                  Initialize a new stackr project with config and example stacks
+  set-password <email>  Set a declared user's password (interactive; needs DB access)
+  issue-invite <email>  Issue a one-time invite token for a declared user (prints token)
+  all                   Run on all stacks
   tear-down      Run "docker compose down" for the stack(s)
   update         Pull latest images and restart stack(s)
   backup         Back up config/volumes to BACKUP_DIR
@@ -64,6 +66,25 @@ Remote stack management:
 `
 
 func main() {
+	// set-password and issue-invite are one-shot admin commands that don't
+	// share any flags with the stack-management commands. Intercept them
+	// before parseArgs so they don't have to round-trip through
+	// stackcmd.Options.
+	if len(os.Args) >= 2 && os.Args[1] == "set-password" {
+		if err := runSetPassword(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "set-password: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "issue-invite" {
+		if err := runIssueInvite(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "issue-invite: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	opts, showHelp, showVersion, err := parseArgs(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -116,7 +137,10 @@ func main() {
 		service := opts.CronService
 		customCmd := opts.VarsCommand
 
-		if err := cronjobs.ExecuteJobManually(cfg, stack, service, customCmd); err != nil {
+		// CLI passes nil recorder — the standalone CLI has no DB. Manual
+		// runs from the daemon UI use a real recorder so /cron/executions
+		// shows them.
+		if err := cronjobs.ExecuteJobManually(cfg, stack, service, customCmd, nil); err != nil {
 			log.Fatalf("failed to execute cron job: %v", err)
 		}
 		return

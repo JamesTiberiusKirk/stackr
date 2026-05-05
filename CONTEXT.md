@@ -37,7 +37,7 @@ stackr/
 │   ├── stackr/          # CLI binary
 │   └── stackrd/         # API daemon binary
 ├── internal/
-│   ├── config/          # .stackr.yaml parsing
+│   ├── config/          # stackr.yaml parsing
 │   ├── cronjobs/        # Cron scheduler
 │   ├── envfile/         # .env file management with snapshots
 │   ├── httpapi/         # HTTP API handlers

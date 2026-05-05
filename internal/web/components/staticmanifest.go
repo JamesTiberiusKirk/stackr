@@ -10,6 +10,7 @@ var StaticManifest = map[string]string{
 	"css/components/alerts.css": "css/components/alerts.aab5e3ea60f2.css",
 	"css/components/buttons.css": "css/components/buttons.81d0bf392c13.css",
 	"css/components/forms.css": "css/components/forms.e5693849894f.css",
+	"css/components/tables.css": "css/components/tables.239be2834b87.css",
 	"css/layout/footer.css": "css/layout/footer.db95d2a22f24.css",
 	"css/layout/header.css": "css/layout/header.b9a95c03c6f9.css",
 	"css/pages/home.css": "css/pages/home.90387a6ff80c.css",

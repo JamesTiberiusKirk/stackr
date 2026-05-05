@@ -33,7 +33,7 @@ Stackr provides:
 1. **Create your repository structure**:
    ```
    my-server/
-   ├── .stackr.yaml          # Stackr configuration
+   ├── stackr.yaml          # Stackr configuration
    ├── .env                  # Secrets (not in git)
    └── stacks/               # Your compose stacks
        ├── myapp/
@@ -74,7 +74,7 @@ The intended workflow is to organize each service as a "stack" (a folder contain
 
 ### 1. Configure your repository
 
-Create a `.stackr.yaml` file in your stack repository root:
+Create a `stackr.yaml` file in your stack repository root:
 
 ```yaml
 stacks_dir: stacks               # Directory containing stack folders
@@ -121,7 +121,35 @@ MYAPP_IMAGE_TAG=v1.0.0
 DATABASE_PASSWORD=secret
 ```
 
-### 2. CLI Usage
+### 2. Logging in to the daemon (local dev)
+
+Users are declared in `stackr.yaml` under `auth.users` and synced to the
+daemon's database on every boot. Passwords live only in the database — they
+are never in config — and need to be set manually before the first login.
+
+For the bundled `sandbox/minimal/` dev environment:
+
+```bash
+# Set the admin password against your dev database
+make sandbox-set-password
+
+# Bring up every declared stack (traefik, nginx, …)
+make sandbox-up
+
+# Then start the daemon (or `hamr dev` for live reload)
+hamr dev
+
+# Visit http://localhost:8080 and log in with admin@stackr.local
+```
+
+Other useful sandbox targets: `make sandbox-down`, `make sandbox-stack-up STACK=nginx`,
+`make sandbox-issue-invite EMAIL=…`, `make help`.
+
+`stackr set-password` opens the database directly, so it has to run on the
+host where the daemon's data lives. It refuses passwords for emails not
+declared in `auth.users` — those would be reconciled away on next boot.
+
+### 3. CLI Usage
 
 ```bash
 # Update a stack
@@ -171,7 +199,7 @@ In your infrastructure repository, create a `stackr-repo.yml` file in the stack 
 
 ```
 my-server/
-├── .stackr.yaml
+├── stackr.yaml
 ├── .env
 └── stacks/
     ├── local-app/
@@ -212,7 +240,7 @@ Stackr will:
 
 ### Remote Stack Configuration
 
-#### Main Configuration (.stackr.yaml)
+#### Main Configuration (stackr.yaml)
 
 Add the remote stacks directory to your main config:
 
@@ -261,11 +289,11 @@ env:
 
 Environment variables are merged with the following priority (highest to lowest):
 
-1. **Stack-specific env** from main `.stackr.yaml` (`env.stacks.{stackName}`)
+1. **Stack-specific env** from main `stackr.yaml` (`env.stacks.{stackName}`)
 2. **Remote deployment config** from `.stackr-deployment.yaml` in remote repo
-3. **Global env** from main `.stackr.yaml` (`env.global`)
+3. **Global env** from main `stackr.yaml` (`env.global`)
 4. **Auto-provisioned vars** (STACKR_PROV_POOL_*, STACKR_PROV_DOMAIN)
-5. **Custom paths** from `.stackr.yaml` (`paths.custom`)
+5. **Custom paths** from `stackr.yaml` (`paths.custom`)
 6. **Base .env** file
 
 This allows you to:
@@ -510,9 +538,9 @@ The manual execution uses the same infrastructure as scheduled runs (timestamped
 ### CLI
 
 - `STACKR_REPO_ROOT`: Path to repository (defaults to current directory if not set)
-- `STACKR_CONFIG_FILE`: Path to .stackr.yaml (defaults to `.stackr.yaml` in repo root)
-- `STACKR_ENV_FILE`: Path to .env file (configurable in `.stackr.yaml`, defaults to `.env`)
-- `STACKR_STACKS_DIR`: Override stacks directory (configurable in `.stackr.yaml`)
+- `STACKR_CONFIG_FILE`: Path to stackr.yaml (defaults to `stackr.yaml` in repo root)
+- `STACKR_ENV_FILE`: Path to .env file (configurable in `stackr.yaml`, defaults to `.env`)
+- `STACKR_STACKS_DIR`: Override stacks directory (configurable in `stackr.yaml`)
 
 ### API Daemon (stackrd)
 
@@ -524,7 +552,7 @@ Optional:
 - `STACKR_HOST`: Bind address (default: `0.0.0.0`)
 - `STACKR_PORT`: Listen port (default: `9000`)
 - `STACKR_ENV_FILE`: Path to .env file (default: `.env`)
-- `STACKR_CONFIG_FILE`: Path to .stackr.yaml (default: `.stackr.yaml`)
+- `STACKR_CONFIG_FILE`: Path to stackr.yaml (default: `stackr.yaml`)
 - `STACKR_HOST_REPO_ROOT`: Host path when using Docker socket (for volume mounts)
 
 ## CI/CD Integration
@@ -545,7 +573,7 @@ Optional:
 
 ## Configuration Reference
 
-### .stackr.yaml
+### stackr.yaml
 
 ```yaml
 # Stack directory (relative or absolute)

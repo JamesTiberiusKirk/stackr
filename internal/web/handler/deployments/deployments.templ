@@ -1,0 +1,107 @@
+package deployments
+
+import (
+	"strconv"
+	"time"
+
+	"github.com/labstack/echo/v4"
+
+	"github.com/jamestiberiuskirk/stackr/internal/repo"
+	"github.com/jamestiberiuskirk/stackr/internal/web/components"
+)
+
+templ deploymentsPage(c echo.Context, rows []repo.Deployment, filter repo.DeploymentFilter, loadErr error) {
+	@components.Layout(c, "Deployments") {
+		<main class="container">
+			<h1>Deployments</h1>
+			if filter.Stack != "" {
+				<p class="text-muted">Filtered to stack <code>{ filter.Stack }</code> · <a href="/deployments">show all</a></p>
+			}
+			if loadErr != nil {
+				<div class="alert alert-error">{ "Failed to load deployments: " + loadErr.Error() }</div>
+			} else if len(rows) == 0 {
+				<p>No deployments yet.</p>
+			} else {
+				<table class="stacks-table">
+					<thead>
+						<tr>
+							<th>Started</th>
+							<th>Stack</th>
+							<th>Tag</th>
+							<th>Status</th>
+							<th>Trigger</th>
+							<th>Duration</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, d := range rows {
+							<tr>
+								<td><a href={ templ.SafeURL("/deployments/" + d.ID) }>{ formatTime(d.StartedAt) }</a></td>
+								<td><a href={ templ.SafeURL("/stacks/" + d.Stack) }>{ d.Stack }</a></td>
+								<td><code>{ orDash(d.Tag) }</code></td>
+								<td><span class={ "status-pill", "status-" + d.Status }>{ d.Status }</span></td>
+								<td>{ d.Trigger }</td>
+								<td>{ formatDuration(d.StartedAt, d.FinishedAt) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</main>
+	}
+}
+
+templ deploymentDetailPage(c echo.Context, d *repo.Deployment) {
+	@components.Layout(c, "Deployment") {
+		<main class="container">
+			<p class="text-muted"><a href="/deployments">← Back to deployments</a></p>
+			<h1>{ d.Stack } · { orDash(d.Tag) }</h1>
+			<dl class="detail-grid">
+				<dt>Status</dt><dd><span class={ "status-pill", "status-" + d.Status }>{ d.Status }</span></dd>
+				<dt>Trigger</dt><dd>{ d.Trigger }</dd>
+				<dt>Started</dt><dd>{ formatTime(d.StartedAt) }</dd>
+				<dt>Finished</dt><dd>{ formatTimePtr(d.FinishedAt) }</dd>
+				<dt>Duration</dt><dd>{ formatDuration(d.StartedAt, d.FinishedAt) }</dd>
+			</dl>
+			if d.Error != "" {
+				<h2>Error</h2>
+				<pre class="log-block log-error">{ d.Error }</pre>
+			}
+			if d.Stdout != "" {
+				<h2>Stdout</h2>
+				<pre class="log-block">{ d.Stdout }</pre>
+			} else {
+				<p class="text-muted">No stdout captured.</p>
+			}
+		</main>
+	}
+}
+
+func formatTime(t time.Time) string {
+	return t.Format(time.RFC3339)
+}
+
+func formatTimePtr(t *time.Time) string {
+	if t == nil {
+		return "—"
+	}
+	return formatTime(*t)
+}
+
+func formatDuration(start time.Time, finish *time.Time) string {
+	if finish == nil {
+		return "—"
+	}
+	d := finish.Sub(start).Round(time.Millisecond)
+	if d < time.Second {
+		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
+	}
+	return d.String()
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}

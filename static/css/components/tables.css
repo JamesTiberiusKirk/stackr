@@ -1,0 +1,337 @@
+/* Tables — shared styling for the read-slice list pages (stacks, deployments,
+   cron jobs, executions). The .data-table class is the new canonical name;
+   .stacks-table is kept as an alias so older pages render identically. */
+
+.data-table,
+.stacks-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    font-size: var(--font-size-sm);
+}
+
+.data-table thead,
+.stacks-table thead {
+    background-color: var(--bg-tertiary);
+}
+
+.data-table th,
+.stacks-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--border-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+}
+
+.data-table td,
+.stacks-table td {
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.data-table tbody tr:last-child td,
+.stacks-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.data-table tbody tr:hover,
+.stacks-table tbody tr:hover {
+    background-color: rgba(255, 179, 71, 0.04);
+}
+
+.data-table a,
+.stacks-table a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.data-table a:hover,
+.stacks-table a:hover {
+    text-decoration: underline;
+}
+
+.data-table code,
+.stacks-table code {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+}
+
+.data-table-name {
+    font-weight: 600;
+}
+
+/* Status pills — used by deployments + cron executions to colour-code
+   running/success/failed states. Type pills (.type-local, .type-remote)
+   reuse the visual treatment for stack types on the index. */
+.status-pill,
+.type-pill {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--border-radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-secondary);
+}
+
+.status-running { color: var(--hamr-fire-yellow); border-color: var(--hamr-fire-yellow); }
+.status-success { color: var(--hamr-fire-glow);   border-color: var(--hamr-fire-glow); }
+.status-failed,
+.status-canceled { color: var(--hamr-fire-deep);  border-color: var(--hamr-fire-deep); }
+.status-pending  { color: var(--text-secondary); }
+.status-missing  { color: var(--text-muted); border-style: dashed; }
+
+/* Stack-aggregate pill colours — consume the live status snapshot.
+   running = all containers up; partial = some up; stopped = none up;
+   empty = no services declared. */
+.status-stopped { color: var(--text-muted); border-color: var(--text-muted); }
+.status-partial { color: var(--hamr-fire-yellow); border-color: var(--hamr-fire-yellow); }
+.status-empty   { color: var(--text-muted); border-style: dashed; }
+
+.type-local  { color: var(--hamr-fire-glow);  border-color: var(--hamr-fire-glow); }
+.type-remote { color: var(--hamr-metal-steel); border-color: var(--hamr-metal-steel); }
+
+/* Empty state — used when a list query returns zero rows. Keeps the page
+   from feeling broken; a centred muted block reads as "intentional". */
+.empty-state {
+    padding: var(--space-2xl);
+    text-align: center;
+    color: var(--text-secondary);
+    background-color: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+/* Page header — title + subtitle / metadata strip above the table. */
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    margin: var(--space-xl) 0 var(--space-lg);
+}
+
+.page-header h1 {
+    margin: 0 0 var(--space-xs) 0;
+    font-size: var(--font-size-2xl);
+}
+
+.page-header p {
+    margin: 0;
+}
+
+.page-header code {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    padding: 0.0625rem 0.375rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+/* Detail pages — definition list grid and log code blocks. */
+.detail-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-sm) var(--space-lg);
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.detail-grid dt {
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    align-self: center;
+}
+
+.detail-grid dd {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.log-block {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--space-md);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-primary);
+    max-height: 32rem;
+    overflow-y: auto;
+}
+
+.log-error {
+    border-color: var(--hamr-fire-deep);
+    color: var(--hamr-fire-deep);
+}
+
+/* Stack-detail panels — three cards stacked beneath the header dl. */
+.panel {
+    margin: var(--space-xl) 0;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+}
+
+.panel-header a {
+    font-size: var(--font-size-sm);
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.panel-header a:hover {
+    text-decoration: underline;
+}
+
+.panel > p,
+.panel > .alert,
+.panel > table {
+    margin: 0;
+}
+
+.panel > p {
+    padding: var(--space-md);
+}
+
+.panel > table {
+    border-radius: 0;
+    border: 0;
+}
+
+/* Port and route chips inside table cells — multiple values stack with a
+   small gap so a service exposing several ports / hosts reads at a glance. */
+.port-badge {
+    display: inline-block;
+    padding: 0.0625rem 0.4rem;
+    margin-right: var(--space-xs);
+    margin-bottom: 0.125rem;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.route-link {
+    display: inline-block;
+    margin-right: var(--space-sm);
+    margin-bottom: 0.125rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+}
+
+/* Action buttons — Up / Down / Restart / Update on stack detail. Each
+   is its own form so they sit inline; flex container handles spacing. */
+.action-buttons {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.action-form {
+    margin: 0;
+}
+
+/* Bulk-action toolbar on the stacks index. Sits above the table and
+   submits the same form the per-row checkboxes belong to. */
+.bulk-form {
+    margin: 0;
+}
+
+.bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    margin-bottom: var(--space-sm);
+}
+
+.bulk-toolbar-label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-right: var(--space-xs);
+}
+
+/* Compact checkbox column on the stacks table. */
+.data-table-check {
+    width: 1.5rem;
+    text-align: center;
+}
+
+/* Live websocket banners — fixed top-right toast stack. New banners
+   prepend; success/failed auto-clear after a few seconds via JS. */
+.ws-banners {
+    position: fixed;
+    top: calc(var(--header-height) + 0.5rem);
+    right: 1rem;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    pointer-events: none;
+    max-width: 28rem;
+}
+
+.ws-banner {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    box-shadow: var(--shadow-md);
+    pointer-events: auto;
+}
+
+.ws-banner-pending,
+.ws-banner-running { border-left: 3px solid var(--hamr-fire-yellow); }
+.ws-banner-success { border-left: 3px solid var(--hamr-fire-glow); }
+.ws-banner-failed  { border-left: 3px solid var(--hamr-fire-deep); }
+
+/* Header nav divider — visual separator between page links and user info. */
+.header-nav-divider {
+    color: var(--text-muted);
+    border-left: 1px solid var(--border-color);
+    padding-left: var(--space-md);
+    margin-left: var(--space-sm);
+}

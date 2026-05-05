@@ -1,7 +1,23 @@
+# Demo app — routed through traefik on the shared `stackr-sandbox` network
+# rather than binding a host port. Visit http://nginx.localhost (resolves to
+# 127.0.0.1 on most modern systems via *.localhost; otherwise add it to
+# /etc/hosts).
 services:
   web:
     image: nginx:alpine
-    ports:
-      - "8080:80"
+    networks:
+      - sandbox
     labels:
       stackr.autodeploy: "true"
+      traefik.enable: "true"
+      traefik.http.routers.nginx.rule: "Host(`nginx.localhost`)"
+      traefik.http.routers.nginx.entrypoints: "web"
+      traefik.http.services.nginx.loadbalancer.server.port: "80"
+
+# Shared external network all sandbox stacks join so traefik can route to
+# them. Pre-created by `make sandbox-up`; declared external here so bring-up
+# order doesn't matter.
+networks:
+  sandbox:
+    name: stackr-sandbox
+    external: true

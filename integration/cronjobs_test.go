@@ -43,7 +43,7 @@ func TestExecuteJobManually(t *testing.T) {
 	cfg.Global.Cron.EnableFileLogs = true
 	cfg.Global.Cron.LogsDir = "logs/cron"
 
-	err := cronjobs.ExecuteJobManually(cfg, stackName, "worker", nil)
+	err := cronjobs.ExecuteJobManually(cfg, stackName, "worker", nil, nil)
 	require.NoError(t, err)
 
 	logsDir := filepath.Join(root, "logs", "cron", stackName)
@@ -89,7 +89,7 @@ func TestExecuteJobManuallyWithCustomCommand(t *testing.T) {
 	cfg.Global.Cron.EnableFileLogs = true
 	cfg.Global.Cron.LogsDir = "logs/cron"
 
-	err := cronjobs.ExecuteJobManually(cfg, stackName, "worker", []string{"echo", "custom-output"})
+	err := cronjobs.ExecuteJobManually(cfg, stackName, "worker", []string{"echo", "custom-output"}, nil)
 	require.NoError(t, err)
 }
 

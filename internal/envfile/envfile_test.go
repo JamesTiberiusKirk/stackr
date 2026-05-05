@@ -161,3 +161,102 @@ func TestUpdate(t *testing.T) {
 			"file should end with newline")
 	})
 }
+
+func TestRead(t *testing.T) {
+	t.Run("PreservesOrder", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".env")
+		require.NoError(t, os.WriteFile(path, []byte("FIRST=a\nSECOND=b\nTHIRD=c\n"), 0o644))
+
+		got, err := Read(path)
+		require.NoError(t, err)
+		require.Len(t, got, 3)
+		// Pinned: the UI shows entries in the order they appear in the
+		// file. Hashing into a map would lose this and confuse operators.
+		require.Equal(t, "FIRST", got[0].Key)
+		require.Equal(t, "SECOND", got[1].Key)
+		require.Equal(t, "THIRD", got[2].Key)
+	})
+
+	t.Run("SkipsCommentsAndBlanks", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".env")
+		body := "# top comment\n\nKEY=val\n# inline\n\nOTHER=other\n"
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+
+		got, err := Read(path)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		require.Equal(t, "KEY", got[0].Key)
+		require.Equal(t, "OTHER", got[1].Key)
+	})
+
+	t.Run("MissingFileReturnsEmpty", func(t *testing.T) {
+		// A fresh checkout might not have a .env yet; the UI shouldn't
+		// surface an error in that case — show an empty table and let
+		// the operator add the first var.
+		got, err := Read("/no/such/path/.env")
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("PreservesValueWithEqualsSign", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".env")
+		require.NoError(t, os.WriteFile(path, []byte("KEY=a=b=c\n"), 0o644))
+
+		got, err := Read(path)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, "a=b=c", got[0].Value)
+	})
+}
+
+func TestDelete(t *testing.T) {
+	t.Run("RemovesExistingKey", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".env")
+		require.NoError(t, os.WriteFile(path, []byte("KEY=val\nOTHER=keep\n"), 0o644))
+
+		removed, err := Delete(path, "KEY")
+		require.NoError(t, err)
+		require.True(t, removed)
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), "KEY=val")
+		require.Contains(t, string(data), "OTHER=keep")
+	})
+
+	t.Run("ReportsMissingKey", func(t *testing.T) {
+		// Delete on a non-existent key is a no-op — no error, but the
+		// caller can tell from the bool that nothing changed (useful
+		// for "deleted N keys" telemetry / flash messages).
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".env")
+		require.NoError(t, os.WriteFile(path, []byte("KEY=val\n"), 0o644))
+
+		removed, err := Delete(path, "MISSING")
+		require.NoError(t, err)
+		require.False(t, removed)
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Contains(t, string(data), "KEY=val", "untouched key must survive a no-op Delete")
+	})
+
+	t.Run("PreservesComments", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".env")
+		body := "# header\nKEY=val\n# trailer\nOTHER=keep\n"
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+
+		_, err := Delete(path, "KEY")
+		require.NoError(t, err)
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Contains(t, string(data), "# header")
+		require.Contains(t, string(data), "# trailer")
+	})
+}
