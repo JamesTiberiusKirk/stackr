@@ -139,7 +139,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<form method=\"POST\" action=\"/stacks/bulk\" class=\"bulk-form\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<form method=\"POST\" action=\"/stacks/bulk\" hx-post=\"/stacks/bulk\" hx-swap=\"none\" class=\"bulk-form\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -159,7 +159,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(r.Stack.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 69, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 75, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -172,7 +172,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var7 templ.SafeURL
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/stacks/" + r.Stack.Name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 71, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 77, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -185,7 +185,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(r.Stack.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 71, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 77, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -220,7 +220,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(r.Stack.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 73, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 79, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -233,7 +233,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(statusLabel(r.Status))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 74, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 80, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -268,7 +268,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(string(r.Stack.Type))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 78, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 84, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -281,7 +281,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(relPath(repoRoot, r.Stack.PrimaryComposePath()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 80, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 86, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -305,7 +305,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 					var templ_7745c5c3_Var17 templ.SafeURL
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(route.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 86, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 92, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -318,7 +318,7 @@ func stacksForm(c echo.Context, repoRoot string, rows []stackRow) templ.Componen
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(route.Host)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 86, Col: 108}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/home/home.templ`, Line: 92, Col: 108}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {

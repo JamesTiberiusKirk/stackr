@@ -153,7 +153,13 @@ templ actionButtons(c echo.Context, name string) {
 }
 
 templ actionForm(c echo.Context, stack, action, label, btnClass string) {
-	<form method="POST" action={ templ.SafeURL("/stacks/" + stack + "/" + action) } class="action-form">
+	<form
+		method="POST"
+		action={ templ.SafeURL("/stacks/" + stack + "/" + action) }
+		hx-post={ "/stacks/" + stack + "/" + action }
+		hx-swap="none"
+		class="action-form"
+	>
 		@form.CSRFField(c)
 		<button type="submit" class={ "btn", btnClass }>{ label }</button>
 	</form>

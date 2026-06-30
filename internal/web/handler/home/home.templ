@@ -40,7 +40,13 @@ templ homePage(c echo.Context, repoRoot string, rows []stackRow, loadErr error) 
 // already permits 'unsafe-inline' for scripts. Pure HTML can't drive
 // "tick all checkboxes in a sibling table" without it.
 templ stacksForm(c echo.Context, repoRoot string, rows []stackRow) {
-	<form method="POST" action="/stacks/bulk" class="bulk-form">
+	<form
+		method="POST"
+		action="/stacks/bulk"
+		hx-post="/stacks/bulk"
+		hx-swap="none"
+		class="bulk-form"
+	>
 		@form.CSRFField(c)
 		<div class="bulk-toolbar">
 			<span class="bulk-toolbar-label">Run on selected:</span>

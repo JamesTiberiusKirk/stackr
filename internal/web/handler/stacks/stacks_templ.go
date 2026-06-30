@@ -609,13 +609,26 @@ func actionForm(c echo.Context, stack, action, label, btnClass string) templ.Com
 		var templ_7745c5c3_Var29 templ.SafeURL
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/stacks/" + stack + "/" + action))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 156, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 158, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" class=\"action-form\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" hx-post=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var30 string
+		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs("/stacks/" + stack + "/" + action)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 159, Col: 45}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\" hx-swap=\"none\" class=\"action-form\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -623,38 +636,38 @@ func actionForm(c echo.Context, stack, action, label, btnClass string) templ.Com
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var30 = []any{"btn", btnClass}
-		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var30...)
+		var templ_7745c5c3_Var31 = []any{"btn", btnClass}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var31...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<button type=\"submit\" class=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var31 string
-		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var30).String())
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 1, Col: 0}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<button type=\"submit\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var32 string
-		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var31).String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 158, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 1, Col: 0}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</button></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var33 string
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 164, Col: 57}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</button></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -716,122 +729,122 @@ func deploymentsList(rows []repo.Deployment) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var33 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var33 == nil {
-			templ_7745c5c3_Var33 = templ.NopComponent
+		templ_7745c5c3_Var34 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var34 == nil {
+			templ_7745c5c3_Var34 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<table class=\"stacks-table\"><thead><tr><th>Started</th><th>Tag</th><th>Status</th><th>Trigger</th><th>Duration</th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<table class=\"stacks-table\"><thead><tr><th>Started</th><th>Tag</th><th>Status</th><th>Trigger</th><th>Duration</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, d := range rows {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<tr><td><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<tr><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var34 templ.SafeURL
-			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/deployments/" + d.ID))
+			var templ_7745c5c3_Var35 templ.SafeURL
+			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/deployments/" + d.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 208, Col: 56}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var35 string
-			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(d.StartedAt))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 208, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 214, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "</a></td><td><code>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var36 string
-			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(d.Tag))
+			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(d.StartedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 209, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 214, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</code></td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</a></td><td><code>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var37 = []any{"status-pill", "status-" + d.Status}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var37...)
+			var templ_7745c5c3_Var37 string
+			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(d.Tag))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 215, Col: 30}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<span class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</code></td><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var38 string
-			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var37).String())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 1, Col: 0}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
+			var templ_7745c5c3_Var38 = []any{"status-pill", "status-" + d.Status}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var38...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<span class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var39 string
-			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(d.Status)
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var38).String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 210, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 1, Col: 0}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</span></td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var40 string
-			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(d.Trigger)
+			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(d.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 211, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 216, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</span></td><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var41 string
-			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(d.StartedAt, d.FinishedAt))
+			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(d.Trigger)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 212, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 217, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var42 string
+			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(d.StartedAt, d.FinishedAt))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 218, Col: 52}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "</tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -855,74 +868,74 @@ func jobsList(jobs []cronjobs.JobInfo) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var42 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var42 == nil {
-			templ_7745c5c3_Var42 = templ.NopComponent
+		templ_7745c5c3_Var43 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var43 == nil {
+			templ_7745c5c3_Var43 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<table class=\"stacks-table\"><thead><tr><th>Service</th><th>Schedule</th><th>Profile</th><th>Run on deploy</th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<table class=\"stacks-table\"><thead><tr><th>Service</th><th>Schedule</th><th>Profile</th><th>Run on deploy</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, j := range jobs {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<tr><td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var43 string
-			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(j.Service)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 227, Col: 20}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</td><td><code>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<tr><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var44 string
-			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(scheduleOrManual(j.Schedule))
+			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(j.Service)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 228, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 233, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</code></td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</td><td><code>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var45 string
-			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(j.Profile))
+			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(scheduleOrManual(j.Schedule))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 229, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 234, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</code></td><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var46 string
-			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(yesNo(j.RunOnDeploy))
+			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(j.Profile))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 230, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 235, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var47 string
+			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(yesNo(j.RunOnDeploy))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 236, Col: 31}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -946,122 +959,122 @@ func executionsList(rows []repo.CronExecution) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var47 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var47 == nil {
-			templ_7745c5c3_Var47 = templ.NopComponent
+		templ_7745c5c3_Var48 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var48 == nil {
+			templ_7745c5c3_Var48 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<table class=\"stacks-table\"><thead><tr><th>Started</th><th>Service</th><th>Status</th><th>Trigger</th><th>Duration</th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<table class=\"stacks-table\"><thead><tr><th>Started</th><th>Service</th><th>Status</th><th>Trigger</th><th>Duration</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, e := range rows {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<tr><td><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<tr><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var48 templ.SafeURL
-			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/cron/executions/" + e.ID))
+			var templ_7745c5c3_Var49 templ.SafeURL
+			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/cron/executions/" + e.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 245, Col: 60}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var49 string
-			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(e.StartedAt))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 245, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 251, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</a></td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var50 string
-			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(e.Service)
+			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(e.StartedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 246, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 251, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</a></td><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var51 = []any{"status-pill", "status-" + e.Status}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var51...)
+			var templ_7745c5c3_Var51 string
+			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(e.Service)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 252, Col: 20}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<span class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</td><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var52 string
-			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var51).String())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 1, Col: 0}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
+			var templ_7745c5c3_Var52 = []any{"status-pill", "status-" + e.Status}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var52...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<span class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var53 string
-			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(e.Status)
+			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var52).String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 247, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 1, Col: 0}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "</span></td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var54 string
-			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(e.Trigger)
+			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(e.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 248, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 253, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</span></td><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var55 string
-			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(e.StartedAt, e.FinishedAt))
+			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(e.Trigger)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 249, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 254, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var56 string
+			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(e.StartedAt, e.FinishedAt))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/handler/stacks/stacks.templ`, Line: 255, Col: 52}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "</tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

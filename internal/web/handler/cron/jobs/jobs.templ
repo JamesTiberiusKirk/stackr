@@ -40,7 +40,14 @@ templ jobsPage(c echo.Context, jobs []cronjobs.JobInfo, loadErr error) {
 								<td>{ orDash(j.Profile) }</td>
 								<td>{ yesNo(j.RunOnDeploy) }</td>
 								<td>
-									<form method="POST" action={ templ.SafeURL("/cron/jobs/" + j.Stack + "/" + j.Service + "/run") } class="action-form">
+									<form
+										method="POST"
+										action={ templ.SafeURL("/cron/jobs/" + j.Stack + "/" + j.Service + "/run") }
+										hx-post={ "/cron/jobs/" + j.Stack + "/" + j.Service + "/run" }
+										hx-target="#ws-banners"
+										hx-swap="afterbegin"
+										class="action-form"
+									>
 										@form.CSRFField(c)
 										<button type="submit" class="btn btn-secondary">Run now</button>
 									</form>
@@ -52,6 +59,14 @@ templ jobsPage(c echo.Context, jobs []cronjobs.JobInfo, loadErr error) {
 			}
 		</main>
 	}
+}
+
+// runNowBanner renders an OOB-style toast for cron Run-now responses.
+// Reuses the .ws-banner styling so synchronous server acks look the same
+// as live WS banners; data-auto-remove flags it for the htmx:afterSwap
+// timer in main.js so it fades on the same 6s schedule.
+templ runNowBanner(label, status string) {
+	<div class={ "ws-banner", "ws-banner-" + status } data-auto-remove>{ label }</div>
 }
 
 func scheduleOrManual(schedule string) string {

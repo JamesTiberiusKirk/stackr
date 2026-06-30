@@ -7,11 +7,9 @@ package stacks
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
-	hamrmw "github.com/FyrmForge/hamr/pkg/middleware"
 	"github.com/FyrmForge/hamr/pkg/respond"
 	"github.com/labstack/echo/v4"
 
@@ -60,8 +58,9 @@ func (h *handler) Bulk(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid form data")
 	}
 	if len(f.Stacks) == 0 {
-		hamrmw.SetFlash(c, "No stacks selected.", hamrmw.FlashInfo)
-		return c.Redirect(http.StatusSeeOther, "/")
+		// Empty selection is a UI guard; with HTMX no nav we drop the
+		// flash. Operators can see no rows were checked.
+		return c.NoContent(http.StatusNoContent)
 	}
 	if f.Action == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing action")
@@ -73,10 +72,10 @@ func (h *handler) Bulk(c echo.Context) error {
 	for _, name := range f.Stacks {
 		h.enqueueAction(name, f.Action)
 	}
-	hamrmw.SetFlash(c,
-		fmt.Sprintf("Queued %s on %d stack(s) — see banners for live status.", f.Action, len(f.Stacks)),
-		hamrmw.FlashInfo)
-	return c.Redirect(http.StatusSeeOther, "/")
+	// Per-stack lifecycle (pending → running → success/failed) lands on
+	// the WS hub via jobs.Manager — that's the live feedback the operator
+	// sees. No redirect, no flash.
+	return c.NoContent(http.StatusNoContent)
 }
 
 // strings is still used elsewhere in this package (TrimSpace, etc); the
@@ -117,13 +116,10 @@ func (h *handler) Action(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	jobID := h.enqueueAction(name, action)
-	hamrmw.SetFlash(c, fmt.Sprintf("Queued %s on %s — see live banner for status.", action, name), hamrmw.FlashInfo)
-
-	// Append the job id as a fragment so a future page refresh shows
-	// "Queued <id>"; HTMX-WS will display the lifecycle on the banner
-	// regardless. Operators can also see the row land on /deployments.
-	return c.Redirect(http.StatusSeeOther, "/stacks/"+name+"#job-"+jobID)
+	h.enqueueAction(name, action)
+	// Lifecycle (pending → running → success/failed) flows over the WS
+	// hub; the page stays put so banners survive. No redirect, no flash.
+	return c.NoContent(http.StatusNoContent)
 }
 
 // enqueueAction is the shared "fork off the work" path used by both

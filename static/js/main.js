@@ -12,6 +12,15 @@ document.addEventListener('htmx:afterSwap', function(evt) {
     if (firstError && firstError.textContent.trim() !== '') {
         firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+
+    // Auto-remove server-rendered ws-banners (e.g. cron Run-now ack)
+    // on the same 6s schedule the WS-side renderer uses, so synchronous
+    // and live banners feel identical. Banners opt in via data-auto-remove.
+    evt.detail.target.querySelectorAll('.ws-banner[data-auto-remove]').forEach(function(banner) {
+        if (banner.dataset.autoRemoveScheduled) return;
+        banner.dataset.autoRemoveScheduled = 'true';
+        setTimeout(function() { banner.remove(); }, 6000);
+    });
 });
 
 // Handle HTMX send errors (network failures).

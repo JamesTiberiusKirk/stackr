@@ -7,7 +7,6 @@ package jobs
 import (
 	"net/http"
 
-	hamrmw "github.com/FyrmForge/hamr/pkg/middleware"
 	"github.com/FyrmForge/hamr/pkg/respond"
 	"github.com/labstack/echo/v4"
 
@@ -39,10 +38,11 @@ func (h *handler) Index(c echo.Context) error {
 
 // POST /cron/jobs/:stack/:service/run
 //
-// Triggers a one-off execution and redirects to /cron/executions with a
-// stack filter so the operator sees the freshly-recorded row at the top.
-// Synchronous — page blocks until the cron container exits. Long-running
-// jobs would benefit from an async pattern; defer.
+// Triggers a one-off execution and returns an OOB ws-banner ack rather
+// than redirecting — the page stays put. Synchronous; the request blocks
+// until the cron container exits, so the banner reflects the final
+// outcome (Triggered / Run failed). Long-running jobs would benefit from
+// an async pattern through jobs.Manager; defer.
 func (h *handler) RunNow(c echo.Context) error {
 	stack := c.Param("stack")
 	svc := c.Param("service")
@@ -50,10 +50,10 @@ func (h *handler) RunNow(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing stack or service")
 	}
 	if err := h.stackr.RunCronJob(c.Request().Context(), stack, svc); err != nil {
-		hamrmw.SetFlash(c, "Run failed for "+stack+"/"+svc+": "+err.Error(), hamrmw.FlashError)
-	} else {
-		hamrmw.SetFlash(c, "Triggered "+stack+"/"+svc, hamrmw.FlashSuccess)
+		return respond.HTML(c, http.StatusOK,
+			runNowBanner("Run failed for "+stack+"/"+svc+": "+err.Error(), "failed"))
 	}
-	return c.Redirect(http.StatusSeeOther, "/cron/executions?stack="+stack+"&service="+svc)
+	return respond.HTML(c, http.StatusOK,
+		runNowBanner("Triggered "+stack+"/"+svc, "success"))
 }
 
